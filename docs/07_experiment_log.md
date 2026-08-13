@@ -21,7 +21,17 @@
 ## M3 · 数据管线（2026-08-13，进行中）
 
 - 已实现并单测通过：精确去重 + minhash LSH（numpy splitmix）、sequence packing（pretrain/SFT 两种）。
-- `pretrain_t2t_mini.jsonl` 派生数据构建中（服务器 `data/processed/pretrain-mini/`）。
+- `pretrain_t2t_mini.jsonl` 构建完成：80,322 序列、**328,903,639 tokens**（权威值，修正此前 0.61B 的字节加权估计）。
+- 发现并修复：padding 语义（input 用合法 token 0、labels 用 -100，否则 Embedding device assert）。
+
+## M4 · Pretrain 开发验证（2026-08-13）
+
+- 编译版短跑（mini、20 步、单卡、batch 24、`max-autotune-no-cudagraphs`）通过：
+  - 修复前：router 被 Muon 接管 + 负载偏置比例步长 → z-loss 爆炸到 6e5、负载摆到 0.5；
+  - 修复后：router/embedding/norm 走 AdamW、偏置改 DeepSeek-V3 固定 ±γ → z≈11.8、负载≈[0.25,0.18,0.36,0.19]、loss 8.61→8.58；
+  - 与激活重计算共存必须禁用 cudagraphs。
+- 注意力实测走 flash 后端（4.2ms @ B24×S4096×96d），不是瓶颈；当前吞吐 ~50k tok/s/卡主要受 MoE 分桶小 GEMM、重计算与 DDP 未用参数标记影响（后续优化）。
+- LR/wd 扫描进行中（mini、6 组合 × 400 步）。
 
 ## Run 记录
 
