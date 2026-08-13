@@ -68,7 +68,7 @@
 
 - 每步记录每层 4 专家 token 占比；偏离 25% 平衡点 >20pp 告警。
 - 偏置式负载均衡（γ=1e-3）+ z-loss（α=1e-3）。
-- 若前 10% 坍塌：叠加 balance aux loss 1e-3，恢复后移除。
+- 实测坍缩 → 常开 balance aux loss 1e-2，偏置步长 ±1e-2（见 01 文档的实测修正）。
 
 **收尾**：取最后 3 个 checkpoint 做 model soup（权重平均）作为 SFT 起点。
 

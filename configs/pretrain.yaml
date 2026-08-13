@@ -24,9 +24,9 @@ warmup_ratio: 0.02
 lr_min_ratio: 0.1                  # 衰减到峰值 10%
 
 routing:
-  balance_gamma: 1.0e-3            # 专家偏置更新步长（不参与梯度）
+  balance_gamma: 1.0e-2            # 专家偏置更新步长（4 专家规模需放大到 1e-2）
   z_loss_alpha: 1.0e-3
-  aux_loss_fallback: 1.0e-3        # 负载偏离 >20pp 时给 balance aux loss（实测启用）
+  aux_loss_fallback: 1.0e-2        # 常开轻量 balance aux（top-1 小模型实测会坍缩）
   load_warn_pp: 20                 # 任一专家占比偏离 25% 超 20pp 告警
 
 activation_recompute: full

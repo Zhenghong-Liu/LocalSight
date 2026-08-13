@@ -90,6 +90,10 @@
 - 监控：每步记录各专家 token 占比；任意专家占比偏离均衡值（25%）超过 20 个百分点时告警。
 - **兜底**：若 pretrain 前 10% 出现坍塌，临时叠加一个很小的 balance aux loss（系数 1e-3），恢复后移除。
 
+> 实测修正（2026-08-13）：4 专家 top-1 小模型在前 70 步就出现路由坍缩（单专家占比
+> 冲到 52%）。因此 pretrain 阶段**常开**轻量 balance aux loss（系数 1e-2），并把
+> 偏置更新步长放大到 ±1e-2（机制仍与 DeepSeek-V3 相同）。这两个值在 configs/pretrain.yaml。
+
 ### 3.6 KV Cache（自研）
 
 - 推理侧连续缓存，支持：prefill 一次性投影、增量 decode 追加、**共享 prompt 的 prefix cache**（RL 采样时 G 个 rollout 复用同一 prompt 前缀）。
