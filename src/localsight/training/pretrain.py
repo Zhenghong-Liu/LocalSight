@@ -74,6 +74,7 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=None, help="限制优化器步数（开发/冒烟用）")
     parser.add_argument("--micro-batch", type=int, default=None, help="覆盖每卡微批次")
     parser.add_argument("--grad-accum", type=int, default=None, help="覆盖梯度累积步数")
+    parser.add_argument("--val-sequences", type=int, default=200, help="数据集尾部用于验证")
     parser.add_argument("--compile", action="store_true", help="torch.compile 训练环（max-autotune）")
     args = parser.parse_args()
 
@@ -114,8 +115,17 @@ def main() -> None:
     model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     dataset = PretrainDataset(Path(args.data_dir))
-    sampler = DistributedSampler(dataset, num_replicas=world, rank=rank, shuffle=True, seed=cfg.get("seed", 42))
-    loader = DataLoader(dataset, batch_size=cfg["micro_batch_size"], sampler=sampler, pin_memory=True)
+    val_indices = list(range(max(0, len(dataset) - args.val_sequences), len(dataset)))
+    train_indices = list(range(max(0, len(dataset) - args.val_sequences)))
+    train_subset = torch.utils.data.Subset(dataset, train_indices)
+    sampler = DistributedSampler(
+        train_subset,
+        num_replicas=world,
+        rank=rank,
+        shuffle=True,
+        seed=cfg.get("seed", 42),
+    )
+    loader = DataLoader(train_subset, batch_size=cfg["micro_batch_size"], sampler=sampler, pin_memory=True)
 
     total_steps = len(loader) * cfg["epochs"] // cfg["grad_accum"]
     warmup = int(total_steps * cfg["warmup_ratio"])
@@ -170,6 +180,27 @@ def main() -> None:
                     )
                     window_tokens = 0
                     window_start = time.time()
+
+                if (optimizer_step + 1) % cfg["save_interval"] == 0 and args.val_sequences > 0:
+                    if rank == 0:
+                        val_loader = DataLoader(
+                            torch.utils.data.Subset(dataset, val_indices),
+                            batch_size=4,
+                        )
+                        model.eval()
+                        total, n = 0.0, 0
+                        with torch.no_grad():
+                            for vb in val_loader:
+                                with torch.autocast("cuda", dtype=torch.bfloat16):
+                                    _, vloss, _ = model(
+                                        vb["input_ids"].cuda(rank),
+                                        labels=vb["labels"].cuda(rank),
+                                        document_ids=vb["document_ids"].cuda(rank),
+                                    )
+                                total += vloss.item() * vb["input_ids"].size(0)
+                                n += vb["input_ids"].size(0)
+                        model.train()
+                        print(f"[val] step={optimizer_step + 1} val_loss={total / max(n, 1):.4f}")
 
                 if (optimizer_step + 1) % cfg["save_interval"] == 0:
                     ckpt = Path(cfg["artifacts_dir"]) / "pretrain" / f"step-{optimizer_step + 1}"
