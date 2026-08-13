@@ -51,9 +51,9 @@ class MinHashSketch:
         stride = max(1, math.ceil(total / cls.MAX_SHINGLES))
         tokens = []
         for i in range(0, total, stride):
-            tokens.append(hash(compact[i:i + ngram]))
+            tokens.append(hash(compact[i:i + ngram]) & cls.MAX)
         if not tokens:
-            tokens = [hash(compact)]
+            tokens = [hash(compact) & cls.MAX]
         arr = np.asarray(tokens, dtype=np.uint64)
         seeds = np.arange(cls.NUM_HASHES, dtype=np.uint64) * GOLDEN
         values = _splitmix64(arr[:, None] ^ seeds[None, :])
