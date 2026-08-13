@@ -120,14 +120,15 @@
 
 对每个阶段统一走「清洗 → 去重 → tokenize → 打包 → 缓存」：
 
-1. **清洗**：控制字符、超长截断、空样本丢弃；保留原始行号到派生 manifest，便于溯源。
-2. **去重**：pretrain 用 minhash（64 签名，Jaccard ≥0.8 去重）；指令数据用「规范化后字符串」精确去重 + prompt 级近似去重。
-3. **tokenize**：一律用仓库内 tokenizer 快照（从数据目录复制进 `data/tokenizer/`，sha256 入库），避免上游文件被改影响复现。
-4. **打包**：
+1. **读取**：用 HuggingFace `datasets` 流式读取 JSONL（`load_dataset(..., streaming=True)`）；需要源文件 sha256 的严格复现场景可切回手工 jsonl 直读（`--backend jsonl`）。
+2. **清洗**：控制字符、超长截断、空样本丢弃；保留统计到派生 manifest，便于溯源。
+3. **去重**：精确（规范化文本 sha256）+ minhash LSH（64 签名，Jaccard ≥0.8）；指令数据用「规范化后字符串」精确去重 + prompt 级近似去重。
+4. **tokenize**：用 `tokenizers`（Rust 后端）批量编码；一律用仓库内 tokenizer 快照（从数据目录复制进 `data/tokenizer/`），避免上游文件被改影响复现。
+5. **打包**：
    - pretrain：sequence packing + document-aware attention mask，`<|endoftext|>` 分隔，目标 4096；
    - SFT/DPO：v1 不打包，按 batch 内最大长度 padding + loss mask；
    - RL：prompt 不打包。
-5. **缓存**：处理后存 `data/processed/<stage>/*.bin`（`mmap` 索引格式），带 manifest（源文件、hash、过滤统计、seed）。
+6. **缓存**：处理后存 `data/processed/<stage>/*.bin`（`mmap` 索引格式），带 manifest（源文件、hash、过滤统计、seed）。
 
 ## 6. 派生数据目录
 

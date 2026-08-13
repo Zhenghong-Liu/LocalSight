@@ -26,6 +26,8 @@ def main() -> None:
     parser.add_argument("--max-chars", type=int, default=100_000)
     parser.add_argument("--threshold", type=float, default=0.8)
     parser.add_argument("--no-dedup", action="store_true")
+    parser.add_argument("--backend", choices=["datasets", "jsonl"], default="datasets",
+                        help="datasets=HF 流式读取（默认）；jsonl=手工直读并记录源文件 sha256")
     parser.add_argument("--chunk", type=int, default=200_000)
     args = parser.parse_args()
 
@@ -38,7 +40,9 @@ def main() -> None:
         dedup=not args.no_dedup,
         dedup_threshold=args.threshold,
     )
-    manifest = builder.build(Path(args.src), Path(args.out), chunk=args.chunk)
+    manifest = builder.build_from_texts(
+        Path(args.src), Path(args.out), chunk=args.chunk, backend=args.backend
+    )
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
 
 

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from pathlib import Path
 
@@ -10,6 +9,7 @@ import numpy as np
 
 from localsight.data.minhash import MinHashSketch
 from localsight.data.packing import pack_sequences
+from localsight.data.source import iter_datasets_texts, iter_jsonl_texts
 from localsight.tokenizer.loader import LocalSightTokenizer
 
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -64,6 +64,16 @@ class PretrainDataBuilder:
         self.dedup_threshold = dedup_threshold
 
     def build(self, src: Path, out_dir: Path, chunk: int = 200_000) -> dict:
+        return self.build_from_texts(src, out_dir, chunk=chunk, backend="datasets")
+
+    def build_from_texts(
+        self,
+        src: Path,
+        out_dir: Path,
+        chunk: int = 200_000,
+        backend: str = "datasets",
+    ) -> dict:
+        """backend: datasets（HF 流式读取，默认）| jsonl（含源文件 sha256）。"""
         out_dir.mkdir(parents=True, exist_ok=True)
         tokens_path = out_dir / "tokens.bin"
         docids_path = out_dir / "doc_ids.bin"
@@ -73,21 +83,19 @@ class PretrainDataBuilder:
         exact_seen: set[bytes] = set()
         batch: list[list[int]] = []
         total_tokens = 0
-        src_hasher = hashlib.sha256()
+
+        if backend == "datasets":
+            text_iter, hasher = iter_datasets_texts(src)
+        elif backend == "jsonl":
+            text_iter, hasher = iter_jsonl_texts(src)
+        else:
+            raise ValueError(f"未知 backend: {backend}")
 
         with open(tokens_path, "wb") as tokens_file, \
-                open(docids_path, "wb") as docids_file, \
-                open(src, "rb") as f:
-            for row, raw in enumerate(f):
-                src_hasher.update(raw)
-                line = raw.decode("utf-8", errors="replace")
+                open(docids_path, "wb") as docids_file:
+            pending_texts: list[str] = []
+            for text in text_iter:
                 stats["rows"] += 1
-                try:
-                    text = json.loads(line).get("text")
-                except Exception:  # noqa: BLE001
-                    continue
-                if not isinstance(text, str):
-                    continue
                 text = clean_text(text)
                 if len(text) < self.min_chars:
                     stats["removed_too_short"] += 1
@@ -107,18 +115,24 @@ class PretrainDataBuilder:
                         continue
                     index.add(sketch)
                 stats["kept_rows"] += 1
-                batch.append(self.tokenizer.encode(text))
+                pending_texts.append(text)
 
+                if len(pending_texts) >= chunk:
+                    batch.extend(self._tokenize(pending_texts))
+                    pending_texts = []
                 if len(batch) >= chunk:
                     total_tokens += self._flush(batch, tokens_file, docids_file, stats)
                     batch = []
+        if pending_texts:
+            batch.extend(self._tokenize(pending_texts))
         if batch:
             total_tokens += self._flush(batch, tokens_file, docids_file, stats)
 
         stats["tokens"] = total_tokens
         manifest = {
             "source": str(src),
-            "source_sha256": src_hasher.hexdigest(),
+            "source_sha256": hasher() if hasher else None,
+            "backend": backend,
             "max_len": self.max_len,
             "dtype": "int32",
             "tokenizer_vocab": self.tokenizer.vocab_size,
@@ -128,6 +142,13 @@ class PretrainDataBuilder:
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         return manifest
+
+    def _tokenize(self, texts: list[str], sub_batch: int = 4096) -> list[list[int]]:
+        """批量 tokenize（Rust tokenizers），sub_batch 限制峰值内存。"""
+        out: list[list[int]] = []
+        for i in range(0, len(texts), sub_batch):
+            out.extend(self.tokenizer.encode_batch(texts[i:i + sub_batch]))
+        return out
 
     def _flush(
         self,

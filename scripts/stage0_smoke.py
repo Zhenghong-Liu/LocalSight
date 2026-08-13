@@ -106,7 +106,7 @@ def main() -> None:
     device = torch.device(f"cuda:{rank}")
 
     cfg = LocalsightConfig()
-    model = LocalsightForCausalLM(cfg).to(device=device, dtype=torch.bfloat16)
+    model = LocalsightForCausalLM(cfg).to(device=device)
     ddp = DDP(model, device_ids=[rank])
     optimizer = torch.optim.AdamW(ddp.parameters(), lr=1e-3, betas=(0.9, 0.95))
 
@@ -115,7 +115,8 @@ def main() -> None:
 
     t0 = time.perf_counter()
     for step in range(args.steps):
-        logits, loss, aux = ddp(ids, labels=ids)
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            logits, loss, aux = ddp(ids, labels=ids)
         total = loss + 1e-3 * aux["z_loss"]
         total.backward()
         gn = grad_norm(ddp)

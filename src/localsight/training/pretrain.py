@@ -77,7 +77,7 @@ def main() -> None:
     cfg, model_cfg = resolve_stage_config(Path(args.config))
     torch.manual_seed(cfg.get("seed", 42) + rank)
 
-    model = LocalsightForCausalLM(model_cfg).to(dtype=torch.bfloat16)
+    model = LocalsightForCausalLM(model_cfg)  # 主权重保持 fp32，计算走 bf16 autocast
     model = DDP(model, device_ids=[rank])
     optimizer = Muon(
         model.parameters(),
