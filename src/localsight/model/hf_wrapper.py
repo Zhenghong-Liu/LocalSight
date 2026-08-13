@@ -86,6 +86,12 @@ class LocalsightHFForCausalLM(PreTrainedModel):
     def get_output_embeddings(self):
         return self.core.lm_head
 
+    def gradient_checkpointing_enable(self, gradient_checkpointing_kwargs=None):
+        self.core.model.gradient_checkpointing = True
+
+    def gradient_checkpointing_disable(self):
+        self.core.model.gradient_checkpointing = False
+
     def save_pretrained(self, save_directory: str | Path, **kwargs):
         save_directory = Path(save_directory)
         save_directory.mkdir(parents=True, exist_ok=True)

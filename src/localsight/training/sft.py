@@ -66,6 +66,7 @@ def main() -> None:
         neftune_noise_alpha=cfg.get("neftune_alpha"),
         report_to=[],
         ddp_find_unused_parameters=True,
+        gradient_checkpointing=True,
     )
     if args.max_steps:
         train_args.max_steps = args.max_steps
