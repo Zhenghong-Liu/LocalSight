@@ -57,6 +57,7 @@ def main() -> None:
                                     [float(x) for x in args.wds.split(",")]):
         torch.manual_seed(42)
         model = LocalsightForCausalLM(LocalsightConfig()).to(device)
+        model.model.gradient_checkpointing = True  # batch 32×4096 需要激活重计算
         optimizer = Muon(model.parameters(), lr=lr, wd=wd)
         g = torch.Generator().manual_seed(42)
         sampler = torch.utils.data.RandomSampler(train_indices, generator=g)

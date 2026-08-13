@@ -28,5 +28,7 @@ class PretrainDataset(Dataset):
         ids = torch.from_numpy(np.asarray(self.tokens[start:start + self.max_len], dtype=np.int64))
         docs = torch.from_numpy(np.asarray(self.doc_ids[start:start + self.max_len], dtype=np.int64))
         labels = ids.clone()
-        labels[ids == -1] = -100
+        pad = ids == -1
+        ids[pad] = 0  # input_ids 必须落在词表内；labels 才是 -100
+        labels[pad] = -100
         return {"input_ids": ids, "labels": labels, "document_ids": docs}

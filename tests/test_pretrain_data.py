@@ -36,6 +36,8 @@ def test_build_and_load(tmp_path: Path):
     item = ds[0]
     assert item["input_ids"].shape == (64,)
     assert item["document_ids"].shape == (64,)
-    pad = item["input_ids"] == -1
-    assert bool((item["labels"][pad] == -100).all())
+    assert bool((item["input_ids"] >= 0).all())  # pad 位置必须是合法 token
+    pad = item["labels"] == -100
+    assert bool(pad.any())
+    assert bool((item["input_ids"][pad] == 0).all())
     assert bool((item["document_ids"][pad] == -1).all())
