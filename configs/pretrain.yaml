@@ -18,8 +18,8 @@ optimizer:
   muon_ns_steps: 5
   muon_scale: 0.2                  # W <- W - lr * (0.2 * O * sqrt(max(A,B)) + wd * W)
   adam_betas: [0.9, 0.95]
-lr: 2.0e-3                         # 开发期在 mini 上扫 [1e-3, 2e-3, 3e-3]
-wd: 0.1                            # 备选 0.05 一并扫
+lr: 3.0e-3                         # mini 扫描结果：3e-3/0.1 最优（val 3.1576）
+wd: 0.1                            # 扫描：wd=0.1 整体优于 0.05
 warmup_ratio: 0.02
 lr_min_ratio: 0.1                  # 衰减到峰值 10%
 
