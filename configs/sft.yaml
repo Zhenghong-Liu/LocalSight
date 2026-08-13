@@ -4,7 +4,7 @@ seed: 1337
 
 dataset: sft_t2t_mini.jsonl
 seq_len: 8192
-packing: false
+packing: true                        # 对话也打包，document-aware mask 保证不串样本
 loss_mask: assistant_only          # assistant 的 think+answer 算 loss，其余 masked
 
 epochs: 2

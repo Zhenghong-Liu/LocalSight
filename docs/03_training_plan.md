@@ -8,6 +8,9 @@
 - 注意力后端：`sdpa` 或 `fa2`（4090 不支持 FA3，见 01 文档）。
 - 每阶段不同 seed；checkpoint 保存优化器状态，支持断点续训。
 - 记录：loss、grad norm、lr、吞吐（tok/s/GPU）、MFU、专家负载/路由熵、attention 熵、生成长度、KL、思考触发率。
+- **性能目标**：MFU ≥ 45%（2×4090 合计约 660 TFLOPS bf16）；低于 40% 必须用 `torch.profiler` 定位瓶颈后再继续。
+- **融合内核**：QKV+QK-Norm+RoPE 融合、SwiGLU 的 gate/up 合并 GEMM、fused cross-entropy。规则是先写参考实现并对齐数值，再上 Triton。
+- **MoE 前向**：按专家分桶批量 GEMM，router 计算在 fp32，禁止逐 token 的 Python 循环。
 
 ## 2. 计算预算（2×4090）
 
@@ -32,9 +35,12 @@
 2. Muon 与 AdamW 参数分组正确性（矩阵 vs 1D 参数）；
 3. 专家负载打印：4 专家 token 占比；
 4. DDP 双卡一致性与吞吐；
-5. 显存占用曲线。
+5. 显存占用曲线；
+6. 注意力后端 micro-benchmark：FA2 vs SDPA(mem_efficient)+compile，固定 batch 比吞吐；
+7. NCCL P2P 带宽测试：4090 无 NVLink，确认 P2P over PCIe 是否可用，不可用则设 `NCCL_P2P_DISABLE=1`；
+8. `torch.compile(max-autotune)` 稳定性与重编译次数检查。
 
-通过标准：loss 平滑下降、无 NaN、双卡吞吐接近单卡 2 倍。**任何架构/优化器变更后先重跑 Stage 0。**
+通过标准：loss 平滑下降、无 NaN、双卡吞吐接近单卡 2 倍、MFU ≥ 45%。**任何架构/优化器变更后先重跑 Stage 0。**
 
 ## 4. Stage 1 · Pretrain
 
@@ -81,6 +87,7 @@
 | 序列长度 | 8192（思考链天然更长；预留 16384） |
 | batch | 128 seq/step（约 1M tokens） |
 | epochs | 2 |
+| 打包 | 开启 sequence packing + document-aware mask（同一 batch 混装多条对话，loss mask 区分，减少 padding 浪费） |
 | loss mask | system/user/tool 轮与 role 头不参与 loss；assistant 的 think+answer 全部参与 |
 | NEFTune | α=5（对 embedding 输入加噪声） |
 

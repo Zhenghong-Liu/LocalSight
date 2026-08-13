@@ -70,8 +70,9 @@
   - 4090（Ada, sm_89）：`torch.nn.functional.scaled_dot_product_attention` 或 FlashAttention-2；
   - Hopper（sm_90）：可选 FlashAttention-3；
   - 训练配置里写 `attn_impl: sdpa|fa2|fa3`。
+- **性能选型**：4090 上优先 FA2 内核；Stage 0 用同一 batch 对「FA2」与「SDPA(mem_efficient)+compile」做 micro-benchmark，取吞吐高者并写进实验日志。FA3 只作为未来 Hopper 硬件的扩展项。
 - 注意：FlashAttention-3 内核只编译支持 Hopper；在 4090 上写 FA3 无法工作，不要在生产代码里硬编码。
-- `torch.compile` 先试默认模式，静态 batch shape；不稳定就退回 `sdpa` + eager。
+- `torch.compile` 用 `max-autotune` + 静态 batch shape，autotune 缓存放 `artifacts/triton_cache` 避免重复编译；不稳定就局部关闭。
 
 ### 3.4 MoE FFN（自研）
 

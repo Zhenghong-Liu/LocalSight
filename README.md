@@ -57,3 +57,5 @@ LocalSight/
 ## 开始
 
 详见 [docs/06_infrastructure.md](docs/06_infrastructure.md)。规划阶段的下一步是：冻结规则 → 搭服务器 conda 环境 → 写模型核心代码与冒烟测试（Stage 0）。
+
+如需把整个项目交给「目标模式」持续执行，使用 [GOAL_PROMPT.md](GOAL_PROMPT.md) 作为初始 prompt。

@@ -75,9 +75,9 @@ cd ~/project && git clone https://github.com/Zhenghong-Liu/LocalSight.git
 
 ```bash
 # 本地 → 服务器（例如转换脚本）
-rsync -av --progress scripts/ sodastar@119.78.227.152:~/project/LocalSight/scripts/
+rsync -av --progress scripts/ localsight:~/project/LocalSight/scripts/
 # 服务器 → 本地（例如下载 GGUF）
-rsync -av sodastar@119.78.227.152:~/project/LocalSight/artifacts/release/ ./artifacts/release/
+rsync -av localsight:~/project/LocalSight/artifacts/release/ ./artifacts/release/
 ```
 
 规则：只同步脚本与最终产物；中间 checkpoint 不下载到本地。
@@ -109,6 +109,7 @@ torchrun --nproc_per_node=2 src/localsight/training/pretrain.py --config configs
 ## 8. 安全约定
 
 - **密码/密钥绝不入库**；SSH 密码只用于交互登录。
-- 建议尽快把服务器换成 SSH 公钥登录（`ssh-copy-id`），并在服务器 `/etc/ssh/sshd_config` 关密码登录前先确认公钥可用（需 root，可稍后处理）。
+- SSH 公钥登录已配置：本地 `~/.ssh/id_ed25519_localsight`（专用、免口令），服务器 `authorized_keys` 已添加；`ssh localsight` 与 `ssh sodastar@119.78.227.152` 均可免密。
+- 服务器仍保留密码登录作为兜底；如需更严格，可在有 root 权限时再关闭密码认证（必须先确认公钥可用）。
 - git 推送使用个人 token/SSH 凭据，不在仓库里存 token。
 - 训练脚本不访问与项目无关的服务器数据。

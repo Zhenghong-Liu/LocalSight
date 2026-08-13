@@ -131,3 +131,19 @@ LocalSight/
 - 固定 seed 表：pretrain 42 / sft 1337 / dpo 2025 / rlaif 2026 / agent_rl 31415。
 - 记录环境：`conda env export > artifacts/env.lock.yml`（或 pip freeze）。
 - 数据 manifest（sha256 + 过滤统计）随 checkpoint 保存。
+
+## 11. 训练性能工程（2×4090 效率清单）
+
+按收益从高到低：
+
+1. **Muon**（Moonlight 公式）：相比 AdamW 约省一半训练 FLOPs，是最大的单项优化；NS 迭代用 bf16 走 tensor core。
+2. **FlashAttention-2 / SDPA(mem_efficient)**：Stage 0 基准二选一，取吞吐高者。
+3. **torch.compile(max-autotune)**：静态 batch shape，autotune 缓存落盘。
+4. **数据零填充**：pretrain 与 SFT 全部 sequence packing + document-aware mask。
+5. **融合内核**：QKV+QK-Norm+RoPE、SwiGLU gate/up 合并、fused CE——先正确、后优化。
+6. **MoE 分桶批量 GEMM**：router 在 fp32，无逐 token Python 循环。
+7. **IO 重叠**：mmap 加载 + prefetch + pin_memory；异步 checkpoint。
+8. **DDP 调优**：梯度 bucket 异步 allreduce；4090 无 NVLink，测试 P2P over PCIe 后定 NCCL 开关。
+9. **MFU 门槛**：≥45% 合格；<40% 必须 profiling。
+
+规则：只优化 profile 证明是瓶颈的部分；每个融合内核必须有参考实现的数值对齐测试（误差 < 5e-3）。

@@ -3,8 +3,10 @@
 seed: 42
 precision: bf16
 grad_clip: 1.0
-attn_impl: sdpa          # sdpa | fa2 | fa3（4090 只支持前两者）
+attn_impl: fa2           # fa2 | sdpa | fa3（4090 只支持前两者；Stage 0 基准后二选一）
 compile: true
+compile_mode: max-autotune
+mfu_target: 0.45         # 低于 0.40 必须 profiling
 
 # 数据与产物
 data_dir: /media/liuzh/data/DLData/LocalSight
