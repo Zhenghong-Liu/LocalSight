@@ -31,8 +31,8 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     for name, (repo, split) in DATASETS.items():
         try:
-        kwargs = {"name": "main"} if name == "gsm8k" else {}
-        ds = load_dataset(repo, split=split, **kwargs)
+            kwargs = {"name": "main"} if name == "gsm8k" else {}
+            ds = load_dataset(repo, split=split, **kwargs)
             ds.save_to_disk(str(out / name))
             print(name, "ok", len(ds))
         except Exception as exc:  # noqa: BLE001
