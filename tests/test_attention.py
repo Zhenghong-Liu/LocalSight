@@ -8,13 +8,14 @@ def test_document_causal_mask_structure():
     doc = torch.tensor([[0, 0, 1, 1]])
     mask = build_document_causal_mask(doc)
     assert mask.shape == (1, 1, 4, 4)
-    assert mask[0, 0, 2, 0] == float("-inf")
-    assert mask[0, 0, 2, 1] == float("-inf")
-    assert mask[0, 0, 2, 2] == 0.0
-    assert mask[0, 0, 2, 3] == float("-inf")  # 因果：不能看未来
-    assert mask[0, 0, 3, 2] == 0.0
-    assert mask[0, 0, 3, 3] == 0.0
-    assert mask[0, 0, 3, 0] == float("-inf")
+    assert mask.dtype == torch.bool
+    assert not mask[0, 0, 2, 0]
+    assert not mask[0, 0, 2, 1]
+    assert mask[0, 0, 2, 2]
+    assert not mask[0, 0, 2, 3]  # 因果：不能看未来
+    assert mask[0, 0, 3, 2]
+    assert mask[0, 0, 3, 3]
+    assert not mask[0, 0, 3, 0]
 
 
 def test_future_tokens_do_not_leak():

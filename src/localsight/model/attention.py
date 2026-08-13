@@ -19,16 +19,15 @@ from .rope import apply_rotary_emb, build_rope_for_positions, yarn_attention_sca
 
 def build_document_causal_mask(
     document_ids: torch.Tensor,
-    dtype: torch.dtype = torch.float32,
+    dtype: torch.dtype = torch.bool,
 ) -> torch.Tensor:
-    """由每个 token 的文档 id 构造加性掩码 (B, 1, S, S)：同文档且因果 → 0，否则 -inf。"""
+    """由每个 token 的文档 id 构造 bool 掩码 (B, 1, S, S)：True=允许注意力。"""
     b, s = document_ids.shape
     doc = document_ids[:, None, :] == document_ids[:, :, None]  # (B,S,S)
     pos = torch.arange(s, device=document_ids.device)
     causal = pos[None, :] <= pos[:, None]  # (S,S)：query i 可看到 key j<=i
     allowed = doc & causal[None, :, :]
-    return torch.where(allowed, torch.zeros((), dtype=dtype, device=document_ids.device),
-                       torch.full((), float("-inf"), dtype=dtype, device=document_ids.device)).view(b, 1, s, s)
+    return allowed.to(dtype).view(b, 1, s, s)
 
 
 class Attention(nn.Module):

@@ -29,8 +29,12 @@ class LocalsightBlock(nn.Module):
         hidden: torch.Tensor,
         position_ids: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
+        document_ids: Optional[torch.Tensor] = None,
         cache: Optional[KVCache] = None,
     ) -> tuple[torch.Tensor, dict]:
+        # 掩码在 checkpoint 内构建：重算而非作为每层输入保存（省显存）
+        if attention_mask is None and document_ids is not None:
+            attention_mask = build_document_causal_mask(document_ids, dtype=torch.bool)
         residual = hidden
         hidden = self.self_attn(
             self.input_layernorm(hidden),
@@ -89,9 +93,6 @@ class LocalsightModel(nn.Module):
         document_ids: Optional[torch.Tensor] = None,
         cache: Optional[KVCache] = None,
     ) -> tuple[torch.Tensor, dict]:
-        if document_ids is not None and attention_mask is None:
-            attention_mask = build_document_causal_mask(document_ids, dtype=torch.float32)
-
         hidden = self.embed_tokens(input_ids)
         z_loss = torch.zeros((), device=hidden.device)
         balance_loss = torch.zeros((), device=hidden.device)
@@ -103,6 +104,7 @@ class LocalsightModel(nn.Module):
                     hidden,
                     position_ids,
                     attention_mask,
+                    document_ids,
                     cache,
                     use_reentrant=False,
                 )
@@ -111,6 +113,7 @@ class LocalsightModel(nn.Module):
                     hidden,
                     position_ids=position_ids,
                     attention_mask=attention_mask,
+                    document_ids=document_ids,
                     cache=cache,
                 )
             z_loss = z_loss + aux.get("z_loss", 0.0)

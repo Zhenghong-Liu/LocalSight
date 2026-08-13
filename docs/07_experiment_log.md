@@ -47,6 +47,14 @@
 结论：正式 pretrain 用 lr=3e-3、wd=0.1。全量语料实测 2,131,183,459 tokens，
 5 epochs ≈ 10.7B tokens。
 
+### Pretrain 正式启动（2026-08-13 21:26）
+
+- 配置：2 卡、micro 32×4096、accum 4（1M tokens/step）、重计算、无 compile、
+  `NCCL_P2P_DISABLE=1`、lr=3e-3、wd=0.1、5 epochs。
+- 启动观察：step 29 loss=8.44（首步 8.89）、z=10.1、grad=16.9、
+  吞吐 95,365 tok/s（MFU 17.2%）、专家负载≈[0.23,0.15,0.45,0.16]。
+- 预计 10.7B tokens ≈ 31h；日志 `artifacts/pretrain.log`，每 1000 步保存 checkpoint 并评估验证损失。
+
 ## Run 记录
 
 - 阶段：
