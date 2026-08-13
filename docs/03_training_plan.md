@@ -62,6 +62,11 @@
 | 调度 | warmup 2% 步数 → cosine 衰减到峰值的 10% |
 | 有效 batch | 1,048,576 tokens = 2 卡 × 32 seq × 4096 × 累积 4 |
 | epochs | **5（用户锁定）**；小语料只用于开发/冒烟与 LR 扫描 |
+
+> 执行修正（2026-08-14 用户决定）：5 epochs 需约 31h，无法在 08:00 前完成。
+> 改为 **epoch 1 结束即提前收尾**（约 step 2032，04:00 自动停训）→ 对最后
+> checkpoint 做 model soup → 立即衔接 SFT 2 epochs → SimPO。全部由
+> `scripts/early_finish_pretrain.py` 看门狗在服务器上自动执行，预计 06:30 前完成。
 | seq len | 4096 |
 
 **MoE 监控与干预**
