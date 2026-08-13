@@ -58,7 +58,18 @@ def main() -> None:
         torch.manual_seed(42)
         model = LocalsightForCausalLM(LocalsightConfig()).to(device)
         model.model.gradient_checkpointing = True  # batch 32×4096 需要激活重计算
-        optimizer = Muon(model.parameters(), lr=lr, wd=wd)
+        matrix_params, other_params = [], []
+        for name, param in model.named_parameters():
+            if param.ndim >= 2 and "mlp.gate" not in name:
+                matrix_params.append(param)
+            else:
+                other_params.append(param)
+        optimizer = Muon(
+            [{"params": matrix_params, "use_muon": True},
+             {"params": other_params, "use_muon": False}],
+            lr=lr,
+            wd=wd,
+        )
         g = torch.Generator().manual_seed(42)
         sampler = torch.utils.data.RandomSampler(train_indices, generator=g)
         loader = DataLoader(torch.utils.data.Subset(dataset, train_indices),

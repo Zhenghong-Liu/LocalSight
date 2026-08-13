@@ -80,8 +80,9 @@ class Muon(Optimizer):
                     continue
                 grad = p.grad
                 state = self.state[p]
+                use_muon = group.get("use_muon", True)
 
-                if grad.ndim >= 2:
+                if use_muon and grad.ndim >= 2:
                     if "momentum" not in state:
                         state["momentum"] = torch.zeros_like(p, dtype=torch.bfloat16)
                     m = state["momentum"]

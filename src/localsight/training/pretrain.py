@@ -71,18 +71,35 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--data-dir", required=True, help="已构建的 processed/pretrain 目录")
+    parser.add_argument("--max-steps", type=int, default=None, help="限制优化器步数（开发/冒烟用）")
+    parser.add_argument("--micro-batch", type=int, default=None, help="覆盖每卡微批次")
+    parser.add_argument("--grad-accum", type=int, default=None, help="覆盖梯度累积步数")
+    parser.add_argument("--compile", action="store_true", help="torch.compile 训练环（max-autotune）")
     args = parser.parse_args()
 
     rank, world = setup_distributed()
     cfg, model_cfg = resolve_stage_config(Path(args.config))
+    if args.micro_batch:
+        cfg["micro_batch_size"] = args.micro_batch
+    if args.grad_accum:
+        cfg["grad_accum"] = args.grad_accum
     torch.manual_seed(cfg.get("seed", 42) + rank)
 
-    model = LocalsightForCausalLM(model_cfg)  # 主权重保持 fp32，计算走 bf16 autocast
+    model = LocalsightForCausalLM(model_cfg).to(f"cuda:{rank}")  # 主权重 fp32，计算走 bf16 autocast
     if cfg.get("activation_recompute") == "full":
         model.model.gradient_checkpointing = True
-    model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+
+    matrix_params, other_params = [], []
+    for name, param in model.named_parameters():
+        if param.ndim >= 2 and "mlp.gate" not in name:
+            matrix_params.append(param)
+        else:
+            other_params.append(param)
     optimizer = Muon(
-        model.parameters(),
+        [
+            {"params": matrix_params, "use_muon": True},
+            {"params": other_params, "use_muon": False},  # embedding/norm/router/1D → AdamW
+        ],
         lr=cfg["lr"],
         momentum=cfg["optimizer"]["muon_momentum"],
         ns_steps=cfg["optimizer"]["muon_ns_steps"],
@@ -90,6 +107,11 @@ def main() -> None:
         wd=cfg["wd"],
         betas=tuple(cfg["optimizer"]["adam_betas"]),
     )
+
+    if args.compile:
+        # 与激活重计算共存时禁用 cudagraphs（否则梯度张量被后续运行覆盖）
+        model = torch.compile(model, mode="max-autotune-no-cudagraphs")
+    model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     dataset = PretrainDataset(Path(args.data_dir))
     sampler = DistributedSampler(dataset, num_replicas=world, rank=rank, shuffle=True, seed=cfg.get("seed", 42))
@@ -153,7 +175,11 @@ def main() -> None:
                     ckpt = Path(cfg["artifacts_dir"]) / "pretrain" / f"step-{optimizer_step + 1}"
                     save_checkpoint(model, optimizer, ckpt, optimizer_step + 1, cfg, rank)
                     dist.barrier()
+                if args.max_steps is not None and optimizer_step + 1 >= args.max_steps:
+                    break
             step += 1
+        if args.max_steps is not None and step // cfg["grad_accum"] >= args.max_steps:
+            break
 
     dist.barrier()
     soup_checkpoints(

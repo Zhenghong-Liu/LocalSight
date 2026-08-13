@@ -58,9 +58,9 @@ class MoEGate(nn.Module):
 
     @torch.no_grad()
     def update_balance_bias(self, counts: torch.Tensor, gamma: float = 1e-3) -> None:
-        """DeepSeek-V3 偏置式负载均衡：超载专家降偏置，欠载专家升偏置。"""
+        """DeepSeek-V3 偏置式负载均衡：固定步长，超载降偏置、欠载升偏置。"""
         target = counts.mean()
-        self.bias.sub_(gamma * (counts - target))
+        self.bias.add_(torch.where(counts > target, -gamma, gamma))
 
 
 def load_balance_loss(probs: torch.Tensor, topk_idx: torch.Tensor, n_experts: int) -> torch.Tensor:
