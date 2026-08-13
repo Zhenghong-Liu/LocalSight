@@ -95,6 +95,7 @@ def bench_compile(model: torch.nn.Module, rank: int, batch: int, seq: int) -> No
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--compile", action="store_true", help="额外跑 compile 稳定性测试")
+    parser.add_argument("--recompute", action="store_true", help="开启激活重计算")
     parser.add_argument("--steps", type=int, default=8)
     parser.add_argument("--batch", type=int, default=4)
     parser.add_argument("--seq", type=int, default=128)
@@ -107,7 +108,9 @@ def main() -> None:
 
     cfg = LocalsightConfig()
     model = LocalsightForCausalLM(cfg).to(device=device)
-    ddp = DDP(model, device_ids=[rank])
+    if args.recompute:
+        model.model.gradient_checkpointing = True
+    ddp = DDP(model, device_ids=[rank], find_unused_parameters=True)
     optimizer = torch.optim.AdamW(ddp.parameters(), lr=1e-3, betas=(0.9, 0.95))
 
     torch.cuda.reset_peak_memory_stats(rank)

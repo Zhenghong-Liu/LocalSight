@@ -6,6 +6,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 
 from .attention import Attention, build_document_causal_mask
 from .config import LocalsightConfig
@@ -57,6 +58,7 @@ class LocalsightModel(nn.Module):
             [LocalsightBlock(config, i) for i in range(config.num_hidden_layers)]
         )
         self.norm = RMSNorm(config.hidden_size, eps=config.norm_eps)
+        self.gradient_checkpointing = False
         self.apply(self._init_weights)
         self._apply_scaled_init()
 
@@ -95,12 +97,22 @@ class LocalsightModel(nn.Module):
         balance_loss = torch.zeros((), device=hidden.device)
         counts = []
         for layer in self.layers:
-            hidden, aux = layer(
-                hidden,
-                position_ids=position_ids,
-                attention_mask=attention_mask,
-                cache=cache,
-            )
+            if self.gradient_checkpointing and self.training:
+                hidden, aux = checkpoint(
+                    layer,
+                    hidden,
+                    position_ids,
+                    attention_mask,
+                    cache,
+                    use_reentrant=False,
+                )
+            else:
+                hidden, aux = layer(
+                    hidden,
+                    position_ids=position_ids,
+                    attention_mask=attention_mask,
+                    cache=cache,
+                )
             z_loss = z_loss + aux.get("z_loss", 0.0)
             balance_loss = balance_loss + aux.get("balance_loss", 0.0)
             counts.append(aux.get("expert_counts"))

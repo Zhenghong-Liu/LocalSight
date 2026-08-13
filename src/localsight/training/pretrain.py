@@ -78,7 +78,9 @@ def main() -> None:
     torch.manual_seed(cfg.get("seed", 42) + rank)
 
     model = LocalsightForCausalLM(model_cfg)  # 主权重保持 fp32，计算走 bf16 autocast
-    model = DDP(model, device_ids=[rank])
+    if cfg.get("activation_recompute") == "full":
+        model.model.gradient_checkpointing = True
+    model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     optimizer = Muon(
         model.parameters(),
         lr=cfg["lr"],
