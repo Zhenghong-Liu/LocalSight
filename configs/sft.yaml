@@ -1,0 +1,21 @@
+extends: base.yaml
+stage: sft
+seed: 1337
+
+dataset: sft_t2t_mini.jsonl
+seq_len: 8192
+packing: false
+loss_mask: assistant_only          # assistant 的 think+answer 算 loss，其余 masked
+
+epochs: 2
+micro_batch_size: 8
+grad_accum: 8
+# 有效 batch = 2 卡 x 8 x 8 = 128 seq
+
+optimizer: adamw
+lr: 1.5e-4
+wd: 0.1
+warmup_ratio: 0.03
+neftune_alpha: 5
+
+start_checkpoint: artifacts/pretrain/soup

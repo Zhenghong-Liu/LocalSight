@@ -1,0 +1,26 @@
+# LocalSight 198M-A64M · Ollama 模板
+#
+# 用法：
+#   1) 把 GGUF 路径替换为实际文件；
+#   2) ollama create localsight-198m -f Modelfile
+#   3) ollama run localsight-198m
+#
+# 思考说明：模型输出格式固定带 <think>...</think>。
+# 默认（SYSTEM 不额外要求）偏向简洁；需要深度推理时把 SYSTEM 改为
+# “请先逐步思考，再给出答案”，即可引导长思考。
+
+FROM ./localsight-198m.Q4_K_M.gguf
+
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ range .Messages }}<|im_start|>{{ .Role }}
+{{ .Content }}<|im_end|>
+{{ end }}<|im_start|>assistant
+"""
+
+SYSTEM """你是 LocalSight，一个轻量、本地运行的中文助手。回答要准确、简洁。"""
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.1
+PARAMETER stop "<|im_end|>"

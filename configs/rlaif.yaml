@@ -1,0 +1,30 @@
+extends: base.yaml
+stage: rlaif
+seed: 2026
+
+dataset: rlaif.jsonl              # 全部末轮留空 → 补全式 prompt
+rounds: 2
+seq_len: 4096
+max_new_tokens: 1024
+
+sampling:
+  k: 6                            # 每 prompt 采样数（成本压力大时降 4）
+  temperature: 0.8
+  top_p: 0.95
+  force_thinking: true            # open_thinking=true
+
+judge:
+  kind: llm                       # llm | rm（rm = 用 dpo 训的轻量奖励头）
+  model: Qwen/Qwen2.5-7B-Instruct # 备选 Qwen3-8B；成本敏感换 4B
+  backend: vllm
+  score_min: 0
+  score_max: 10
+
+algorithm: simpo
+lr: 3.0e-6
+beta: 2.0
+gamma: 1.2
+micro_batch_size: 4
+grad_accum: 6
+
+start_checkpoint: artifacts/dpo/final

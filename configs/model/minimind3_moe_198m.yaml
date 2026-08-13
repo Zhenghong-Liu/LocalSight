@@ -1,0 +1,30 @@
+# localsight-198m-moe 架构规格（已按实测修正）
+# 总参数 ~198.5M，激活 ~63.9M。与 MiniMind-3-MoE / Qwen3-MoE 命名兼容。
+
+model_type: minimind
+vocab_size: 6400
+hidden_size: 768
+num_hidden_layers: 8
+num_attention_heads: 8
+num_key_value_heads: 4
+head_dim: 96
+
+intermediate_size: 2048            # 稠密 FFN 兜底（MoE 模式不用）
+moe_intermediate_size: 2432        # 每个专家 FFN 维度：198M 参数账的关键
+num_experts: 4
+num_experts_per_tok: 1             # top-1
+use_shared_expert: false
+
+tie_word_embeddings: true
+use_bias: false
+max_position_embeddings: 32768
+rope_theta: 1000000
+rope_scaling: null                 # 长上下文续训子阶段再启用 YaRN
+use_qk_norm: true
+norm_eps: 1.0e-6
+hidden_act: silu
+
+# 初始化
+init_std: 0.02
+init_router_std: 0.01
+output_proj_scale: 0.005           # 0.02 / sqrt(2 * 8)

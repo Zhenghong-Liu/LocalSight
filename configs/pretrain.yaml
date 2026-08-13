@@ -1,0 +1,33 @@
+extends: base.yaml
+stage: pretrain
+seed: 42
+
+dataset: pretrain_t2t.jsonl        # 全量 ~4.15B tokens；开发冒烟换 pretrain_t2t_mini.jsonl
+seq_len: 4096
+packing: true
+document_aware_mask: true
+
+epochs: 1                          # 主跑 1 遍；验证仍下降可 +1
+micro_batch_size: 32               # 每卡序列数
+grad_accum: 4
+# 有效 batch = 2 卡 x 32 x 4096 x 4 = 1,048,576 tokens
+
+optimizer:
+  # 2D 矩阵 → Muon（Moonlight 公式）；1D/标量 → AdamW
+  muon_momentum: 0.95
+  muon_ns_steps: 5
+  muon_scale: 0.2                  # W <- W - lr * (0.2 * O * sqrt(max(A,B)) + wd * W)
+  adam_betas: [0.9, 0.95]
+lr: 2.0e-3                         # 开发期在 mini 上扫 [1e-3, 2e-3, 3e-3]
+wd: 0.1                            # 备选 0.05 一并扫
+warmup_ratio: 0.02
+lr_min_ratio: 0.1                  # 衰减到峰值 10%
+
+routing:
+  balance_gamma: 1.0e-3            # 专家偏置更新步长（不参与梯度）
+  z_loss_alpha: 1.0e-3
+  aux_loss_fallback: null          # 坍塌时临时给 balance aux loss 1e-3
+  load_warn_pp: 20                 # 任一专家占比偏离 25% 超 20pp 告警
+
+activation_recompute: full
+soup_last_n: 3

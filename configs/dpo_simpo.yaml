@@ -1,0 +1,19 @@
+extends: base.yaml
+stage: dpo
+seed: 2025
+
+dataset: dpo.jsonl
+seq_len: 4096
+algorithm: simpo                 # 无 ref、长度归一化、target margin
+
+epochs: 1
+micro_batch_size: 4              # 每卡 pairs
+grad_accum: 6
+# 有效 batch = 2 卡 x 4 x 6 = 48 pairs
+
+lr: 5.0e-6
+warmup_ratio: 0.0
+beta: 2.0                        # 开发期在 {2.0, 2.5} x {0.8, 1.2} 小扫
+gamma: 1.2
+
+start_checkpoint: artifacts/sft/final

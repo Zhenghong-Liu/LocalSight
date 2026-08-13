@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data & model artifacts (never commit these)
+artifacts/
+data/raw/
+data/processed/
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.gguf
+wandb/
+logs/
+
+# Local / OS
+.DS_Store
+*.log
+tmp/
+.idea/
+.vscode/

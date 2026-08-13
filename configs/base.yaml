@@ -1,0 +1,18 @@
+# LocalSight 全局默认配置。阶段配置可覆盖以下键。
+
+seed: 42
+precision: bf16
+grad_clip: 1.0
+attn_impl: sdpa          # sdpa | fa2 | fa3（4090 只支持前两者）
+compile: true
+
+# 数据与产物
+data_dir: /media/liuzh/data/DLData/LocalSight
+tokenizer_dir: data/tokenizer
+artifacts_dir: artifacts
+log_interval: 10
+save_interval: 1000
+keep_last_checkpoints: 3
+
+# 模型结构指向独立文件
+model_config: configs/model/minimind3_moe_198m.yaml

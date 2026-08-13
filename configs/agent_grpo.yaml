@@ -1,0 +1,35 @@
+extends: base.yaml
+stage: agent_rl
+seed: 31415
+
+dataset: agent_rl.jsonl           # v1 只用带 tools+gt 的 20000 条
+seq_len: 8192
+max_new_tokens: 1024
+max_tool_rounds: 3
+
+algorithm: grpo_dapo
+sampling:
+  group_size: 6
+  temperature: 0.9
+  top_p: 0.95
+
+reward:
+  format: 0.3                     # think 标签 + tool_call JSON 合法
+  tool_call: 0.2                  # 名字/参数合法且执行成功
+  outcome: 0.5                    # 最终答案 vs gt（数值归一化/文本相似匹配）
+  overlong_shaping: true
+
+loss:
+  clip_low: 0.2
+  clip_high: 0.28                 # DAPO clip-higher
+  dynamic_sampling: true
+  token_level: false              # v1 关闭
+  kl_coef: 0.0                    # DAPO 默认；熵坍缩时开 0.005
+
+lr: 3.0e-6
+warmup_ratio: 0.0
+micro_batch_size: 4
+grad_accum: 6
+# 有效 batch = 2 卡 x 4 x 6 = 48 prompts（每 prompt 6 条 rollout）
+
+start_checkpoint: artifacts/rlaif/final
