@@ -74,6 +74,8 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=None, help="限制优化器步数（开发/冒烟用）")
     parser.add_argument("--micro-batch", type=int, default=None, help="覆盖每卡微批次")
     parser.add_argument("--grad-accum", type=int, default=None, help="覆盖梯度累积步数")
+    parser.add_argument("--lr", type=float, default=None, help="覆盖学习率")
+    parser.add_argument("--wd", type=float, default=None, help="覆盖权重衰减")
     parser.add_argument("--val-sequences", type=int, default=200, help="数据集尾部用于验证")
     parser.add_argument("--compile", action="store_true", help="torch.compile 训练环（max-autotune）")
     args = parser.parse_args()
@@ -84,6 +86,10 @@ def main() -> None:
         cfg["micro_batch_size"] = args.micro_batch
     if args.grad_accum:
         cfg["grad_accum"] = args.grad_accum
+    if args.lr is not None:
+        cfg["lr"] = args.lr
+    if args.wd is not None:
+        cfg["wd"] = args.wd
     torch.manual_seed(cfg.get("seed", 42) + rank)
 
     model = LocalsightForCausalLM(model_cfg).to(f"cuda:{rank}")  # 主权重 fp32，计算走 bf16 autocast
