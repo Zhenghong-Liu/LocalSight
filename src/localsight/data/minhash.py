@@ -1,14 +1,26 @@
-"""MinHash 近似去重：64 个 sketch，Jaccard 阈值默认 0.8。仅依赖标准库。"""
+"""MinHash 近似去重：64 个 sketch，Jaccard 阈值默认 0.8。
+
+性能说明：每个 shingle 只做一次 Python 内置 hash，再用 numpy 向量化的
+splitmix64 展开成 64 个签名位；长文本按步长采样，单文档 shingle 上限 4096。
+"""
 from __future__ import annotations
 
-import hashlib
+import math
 import re
 from typing import Iterable, Iterator
 
+import numpy as np
 
-def _hash64(seed: int, token: str) -> int:
-    digest = hashlib.blake2b(f"{seed}\x00{token}".encode("utf-8"), digest_size=8).digest()
-    return int.from_bytes(digest, "big")
+MASK64 = np.uint64((1 << 64) - 1)
+GOLDEN = np.uint64(0x9E3779B97F4A7C15)
+
+
+def _splitmix64(x: np.ndarray) -> np.ndarray:
+    z = (x + GOLDEN) & MASK64
+    z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+    z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+    z = z ^ (z >> np.uint64(31))
+    return z & MASK64
 
 
 def shingles(text: str, n: int = 5) -> Iterator[str]:
@@ -21,18 +33,31 @@ def shingles(text: str, n: int = 5) -> Iterator[str]:
 
 
 class MinHashSketch:
-    """一个文本的 64 维 minhash 签名（uint64）。"""
+    """一个文本的 64 维 minhash 签名（python int 列表）。"""
 
     NUM_HASHES = 64
     MAX = 2**64 - 1
+    MAX_SHINGLES = 4096
 
     def __init__(self, text: str, ngram: int = 5):
-        self.values: list[int] = [self.MAX] * self.NUM_HASHES
-        for token in shingles(text, ngram):
-            for seed in range(self.NUM_HASHES):
-                h = _hash64(seed, token)
-                if h < self.values[seed]:
-                    self.values[seed] = h
+        self.values: list[int] = self._compute(text, ngram)
+
+    @classmethod
+    def _compute(cls, text: str, ngram: int) -> list[int]:
+        compact = re.sub(r"\s+", " ", text.strip())
+        if not compact:
+            compact = " "
+        total = max(1, len(compact) - ngram + 1)
+        stride = max(1, math.ceil(total / cls.MAX_SHINGLES))
+        tokens = []
+        for i in range(0, total, stride):
+            tokens.append(hash(compact[i:i + ngram]))
+        if not tokens:
+            tokens = [hash(compact)]
+        arr = np.asarray(tokens, dtype=np.uint64)
+        seeds = np.arange(cls.NUM_HASHES, dtype=np.uint64) * GOLDEN
+        values = _splitmix64(arr[:, None] ^ seeds[None, :])
+        return [int(v) for v in values.min(axis=0)]
 
     def jaccard(self, other: "MinHashSketch") -> float:
         matches = sum(a == b for a, b in zip(self.values, other.values))
