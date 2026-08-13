@@ -29,7 +29,7 @@
 - **架构**：MiniMind-3-MoE 骨架，768 维 / 8 层 / 8 Q 头 / 4 KV 头（GQA），4 专家 top-1、无共享专家；`moe_intermediate_size=2432`（不是 2048，参数账决定）；词表 6400（数据集自带 BPE，含 think/tool/vision/audio/TTS 特殊 token）；tied embedding、无 bias、RMSNorm、QK-Norm、SwiGLU、RoPE theta=1e6、max_pos=32768。
 - **多模态**：当前只做文本；代码预留 `ModalityEncoder` / `Projector` 接口与数据字段，不提前实现视觉塔。
 - **训练顺序**：pretrain → sft → dpo → rlaif → agent_rl，不可调换。
-- **pretrain**：主语料 `pretrain_t2t.jsonl`（7.8GB，约 4.15B tokens，≈Chinchilla 最优），主跑 1 epoch（验证仍降可 +1）；`pretrain_t2t_mini.jsonl`（约 0.61B）用于开发、冒烟与 LR 扫描。优化器 Muon（Moonlight 公式 `W ← W − η(0.2·O·√max(A,B) + λW)`，NS=5、momentum=0.95）管理矩阵参数，AdamW 管 embedding/norm/router 等 1D 参数；lr 初值 2e-3，在 mini 上扫 [1e-3, 2e-3, 3e-3] 后定。
+- **pretrain**：主语料只用大文件 `pretrain_t2t.jsonl`（7.8GB，约 4.15B tokens），**跑 5 epochs（用户锁定，约 20.8B tokens）**；`pretrain_t2t_mini.jsonl`（约 0.61B）仅用于开发、冒烟与 LR 扫描。优化器 Muon（Moonlight 公式 `W ← W − η(0.2·O·√max(A,B) + λW)`，NS=5、momentum=0.95）管理矩阵参数，AdamW 管 embedding/norm/router 等 1D 参数；lr 初值 2e-3，在 mini 上扫 [1e-3, 2e-3, 3e-3] 后定。
 - **MoE 路由**：DeepSeek-V3 偏置式 aux-loss-free 负载均衡（γ=1e-3，偏置不参与梯度）+ router z-loss（α=1e-3）；坍塌时兜底 balance aux loss。
 - **SFT**：905,718 条，约 34% 带 reasoning_content、约 9.4% 带工具；统一用数据自带的 chat_template（assistant 永远包 `<think>...</think>`）；AdamW lr=1.5e-4，2 epochs，seq 8192，packing + document-aware mask，NEFTune α=5。
 - **dpo**：17,166 对无思考格式 → SimPO 做通用质量偏好（β=2.0、γ=1.2 起步），lr=5e-6。
@@ -92,7 +92,7 @@ git push origin main
 
 ### M4 Pretrain
 
-mini 语料 LR 扫描 [1e-3, 2e-3, 3e-3] × wd {0.05, 0.1} → 全量 1 epoch（有效 batch 1M tokens，seq 4096）→ 最后 3 个 ckpt model soup → 验证 loss 与专家负载。
+mini 语料 LR 扫描 [1e-3, 2e-3, 3e-3] × wd {0.05, 0.1} → 全量大语料 **5 epochs**（有效 batch 1M tokens，seq 4096）→ 最后 3 个 ckpt model soup → 验证 loss 与专家负载。
 
 ### M5 SFT
 

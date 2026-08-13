@@ -18,14 +18,13 @@
 
 | 阶段 | tokens | 时间估算（40–50% MFU） |
 | --- | --- | --- |
-| Pretrain 1 epoch（~4.15B） | 4.15B | ~4–5.5 h |
-| Pretrain 可选第 2 epoch | +4.15B | +~4–5.5 h |
+| Pretrain 5 epochs（~20.8B） | 20.8B | ~21–28 h |
 | SFT 2 epochs | ~0.66B | ~1–2 h |
 | SimPO 1 epoch | ~25M | ~0.5–1 h |
 | RLAIF（采样+judge+更新）×2 | 采样 ~120M gen tokens | **12–30 h（judge 主导）** |
 | Agent RL 1 epoch | 采样 ~150M gen tokens | ~2–4 h |
 
-纯训练约 1–2.5 天；加上开发调试，现实排期 1–2 周。
+纯训练约 1.5–3 天（pretrain 5 epochs 是最大头）；加上开发调试，现实排期 1–2 周。
 
 ## 3. Stage 0 · 冒烟测试（先于任何正式训练）
 
@@ -62,7 +61,7 @@
 | wd | 0.1（备选 0.05，一并扫） |
 | 调度 | warmup 2% 步数 → cosine 衰减到峰值的 10% |
 | 有效 batch | 1,048,576 tokens = 2 卡 × 32 seq × 4096 × 累积 4 |
-| epochs | 主跑 **1 epoch**；若验证 loss 仍在下降且有预算，可 +1 epoch（Chinchilla 附近通常 1 遍已足够） |
+| epochs | **5（用户锁定）**；小语料只用于开发/冒烟与 LR 扫描 |
 | seq len | 4096 |
 
 **MoE 监控与干预**

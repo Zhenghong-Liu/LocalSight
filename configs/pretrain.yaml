@@ -7,7 +7,7 @@ seq_len: 4096
 packing: true
 document_aware_mask: true
 
-epochs: 1                          # 主跑 1 遍；验证仍下降可 +1
+epochs: 5                          # 用户锁定：大语料跑 5 epochs（约 20.8B tokens）
 micro_batch_size: 32               # 每卡序列数
 grad_accum: 4
 # 有效 batch = 2 卡 x 32 x 4096 x 4 = 1,048,576 tokens

@@ -20,7 +20,7 @@
 
 关键结论：
 
-- 全量 pretrain ≈ 4.15B tokens，与 198M 模型的 Chinchilla 最优量（约 20×N ≈ 4B）基本一致 → 全量作主语料、mini 作开发/冒烟语料。
+- 全量 pretrain ≈ 4.15B tokens，是**唯一主训语料**（按用户要求跑 5 epochs，约 20.8B tokens）；mini（约 0.61B）只用于开发、冒烟测试与 LR 扫描。
 - pretrain 文本以中文为主、且明显包含合成指令型文本（不是纯网页语料），需要按此设定预期并做质量过滤。
 
 ## 3. Tokenizer（沿用，不重训）

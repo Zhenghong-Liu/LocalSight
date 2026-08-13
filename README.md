@@ -20,7 +20,7 @@
 | agent_rl.jsonl | 79 MB | 39,988 | `{conversations, gt}`（末轮留空） | ~9M |
 
 - Tokenizer：6400 词表 ByteLevel BPE，内置 `<think>`、`<tool_call>`、vision/audio/TTS 特殊 token。
-- 预训练语料约 4.15B tokens，与 198M 模型的 Chinchilla 最优量（约 4B）基本一致 → 适合「一遍过」策略。
+- 预训练使用大语料（约 4.15B tokens），按用户要求跑 **5 epochs**（约 20.8B tokens）；小语料只用于开发/冒烟与 LR 扫描。
 
 ## 文档导航
 

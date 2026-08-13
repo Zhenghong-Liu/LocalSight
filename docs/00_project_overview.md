@@ -28,7 +28,7 @@
 ## 3. 核心原则
 
 1. **实测驱动**：任何「假设」先查真实数据/跑小实验，再写进规则。本次已实测全部 6 个数据文件与 tokenizer（见 02 文档）。
-2. **一遍过 + 闸门**：五个阶段各跑一次主训练（pretrain→sft→dpo→rlaif→agent_rl，顺序不可调换）；每阶段结束有评测闸门，不达标先诊断、只允许一次定向重训，不允许静默跳过。「一遍过」指阶段流程单次推进，不指数据必须单 epoch——pretrain 的 epoch 数由语料规模决定。
+2. **一遍过 + 闸门**：五个阶段各跑一次主训练（pretrain→sft→dpo→rlaif→agent_rl，顺序不可调换）；每阶段结束有评测闸门，不达标先诊断、只允许一次定向重训，不允许静默跳过。「一遍过」指阶段流程单次推进，不指数据必须单 epoch——pretrain 的大语料按用户锁定为 **5 epochs**。
 3. **生态兼容**：权重命名对齐 Qwen3-MoE，能低成本转 transformers / llama.cpp / Ollama / vLLM。
 4. **自研核心、复用外围**：RMSNorm、RoPE、KV Cache、MoE、Muon、采样与损失函数自己写（学习与可控性）；tokenizer、数据集加载、配置解析、日志、SFT 训练循环可调包（HF 生态）。
 5. **多模态预留，不提前实现**：现在只设计「编码器/投影器」接口与 token 协议，不写视觉塔代码，避免过早复杂化。
@@ -59,6 +59,7 @@
 | D4 | 路由用 aux-loss-free 偏置法 + z-loss（升级 MiniMind 原版的 aux loss） | 小模型 top-1 易坍塌，DeepSeek-V3 偏置法不干扰梯度 |
 | D5 | 注意力在 4090 上用 FlashAttention-2/SDPA，不声称支持 FA3 | FA3 内核仅 Hopper（sm90）；4090 是 Ada（sm_89） |
 | D6 | pretrain 主语料用全量 7.8GB（约 4.15B tokens），mini 用作开发/冒烟 | 全量≈198M 模型 Chinchilla 最优量；mini 只有 0.61B |
+| D11 | pretrain 大语料跑 **5 epochs**（约 20.8B tokens） | 用户明确拍板；小语料仅用于开发/冒烟与 LR 扫描 |
 | D7 | DPO 数据定位为「通用质量偏好」，不含思考格式；思考质量偏好交给 RLAIF | 实测 17,166 对全部无 `<think>` |
 | D8 | RLAIF 数据定位为「末轮留空的补全 prompt」 | 实测 19,502 条末轮 assistant 均为空串 |
 | D9 | Agent RL 用 2 万条带工具+gt 的任务，内置 6 种工具执行器 | 实测无交互环境；gt 可做结果奖励 |
