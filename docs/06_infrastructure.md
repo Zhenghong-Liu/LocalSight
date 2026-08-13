@@ -37,6 +37,10 @@ pip install transformers tokenizers datasets accelerate trl safetensors pyyaml n
 pip install flash-attn --no-build-isolation   # 按 cu128 选 wheel；失败则先用 SDPA 后端
 ```
 
+> 镜像兜底：conda 源带宽不足时，可改用 `scripts/setup_server_venv.sh`
+> （基于已有 kdl python 建项目级 `.venv`，包走阿里云镜像）；两种方案功能等价，
+> 以实际使用的方案为准并记录在实验日志。
+
 验证：
 
 ```bash

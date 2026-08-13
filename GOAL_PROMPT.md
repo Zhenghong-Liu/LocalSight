@@ -50,7 +50,7 @@ git push origin main
 
 - **训练服务器**：`sodastar@119.78.227.152`（Ubuntu 22.04），2× RTX 4090（24GB/卡，驱动 580.173）。SSH 公钥已配置，**本地 `ssh localsight` 免密可用**；不再需要密码。项目在 `~/project/LocalSight`。
 - **数据**（只读）：服务器 `/media/liuzh/data/DLData/LocalSight`（tokenizer 快照已复制到项目 `data/tokenizer/`）。
-- **conda**：已有 `kdl` 环境，**不要动它**；新建独立环境 `localsight`（Python 3.11，torch cu128、flash-attn、transformers、trl 等，见 docs/06）。
+- **conda**：已有 `kdl` 环境，**不要动它**；新建独立环境（首选 conda `localsight`，镜像不可用时改用 `scripts/setup_server_venv.sh` 的项目级 `.venv`；两者功能等价，Python 3.11、torch cu128、flash-attn/transformers/trl 等，见 docs/06）。
 - **磁盘**：根盘剩约 314G，数据盘剩 4.5T；checkpoint/派生数据写项目目录，不写数据盘。
 
 ## 5. 硬约束
@@ -67,7 +67,7 @@ git push origin main
 
 ### M1 服务器环境
 
-1. 在服务器建 `localsight` conda 环境并安装依赖（先试官方源，慢再换镜像）；
+1. 在服务器建独立 Python 环境（conda `localsight` 或项目 `.venv`，二选一）并安装依赖（官方源失败换镜像）；
 2. `torchrun --nproc_per_node=2 scripts/smoke_test.py` 通过；
 3. 记录 `artifacts/env.lock.yml`。
 
