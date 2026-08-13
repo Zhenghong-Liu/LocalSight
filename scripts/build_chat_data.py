@@ -90,7 +90,9 @@ def _flush(
     ids_rows, labels_rows, doc_rows = [], [], []
     n_tokens = 0
     for ids, labels, doc_ids in pack_labelled_sequences(batch, max_len, eos_id, pad_id=-1):
-        ids_rows.append(ids[0].tolist())
+        ids = ids[0].clone()
+        ids[ids == -1] = 0  # input 必须是合法 token；labels/doc_ids 才用 -1/-100
+        ids_rows.append(ids.tolist())
         labels_rows.append(labels[0].tolist())
         doc_rows.append(doc_ids[0].tolist())
         n_tokens += sum(1 for t in ids_rows[-1] if t != -1)
