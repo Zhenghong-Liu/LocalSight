@@ -26,6 +26,7 @@ def main() -> None:
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--start-checkpoint", default=None)
+    parser.add_argument("--max-steps", type=int, default=None, help="冒烟测试时限制步数")
     args = parser.parse_args()
 
     cfg, model_cfg = resolve_stage_config(Path(args.config))
@@ -59,6 +60,9 @@ def main() -> None:
         report_to=[],
         ddp_find_unused_parameters=True,
     )
+    if args.max_steps:
+        train_args.max_steps = args.max_steps
+        train_args.num_train_epochs = 1.0
     trainer = Trainer(
         model=model,
         args=train_args,
