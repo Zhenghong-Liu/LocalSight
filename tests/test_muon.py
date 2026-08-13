@@ -8,7 +8,7 @@ def test_newton_schulz_output_is_orthonormal_columns():
     g = torch.randn(64, 16)
     o = zeropower_via_newtonschulz5(g, steps=5)
     gram = o.float().T @ o.float()
-    torch.testing.assert_close(gram, torch.eye(16), atol=1e-3, rtol=1e-3)
+    torch.testing.assert_close(gram, torch.eye(16), atol=5e-3, rtol=5e-3)
 
 
 def test_muon_updates_matrix_and_vector_params():

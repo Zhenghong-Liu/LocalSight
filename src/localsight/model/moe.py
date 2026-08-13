@@ -36,6 +36,7 @@ class MoEGate(nn.Module):
         self.n_experts = config.num_experts
         self.top_k = config.num_experts_per_tok
         self.weight = nn.Parameter(torch.empty(self.n_experts, config.hidden_size))
+        nn.init.normal_(self.weight, mean=0.0, std=config.init_router_std)
         self.register_buffer("bias", torch.zeros(self.n_experts))
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, dict]:

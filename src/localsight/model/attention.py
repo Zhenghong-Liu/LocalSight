@@ -92,8 +92,8 @@ class Attention(nn.Module):
             rope_scaling=self.rope_scaling,
             dtype=torch.float32,
         )
-        cos = cos[None, None].to(q.dtype)  # (1,1,S,d/2)
-        sin = sin[None, None].to(q.dtype)
+        cos = cos[None, :, None].to(q.dtype)  # (1,S,1,d/2) 对齐 (B,S,H,d)
+        sin = sin[None, :, None].to(q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
 

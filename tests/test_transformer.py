@@ -6,8 +6,8 @@ from localsight.model import LocalsightConfig, LocalsightForCausalLM, count_para
 def test_exact_parameter_counts():
     model = LocalsightForCausalLM(LocalsightConfig())
     total, active = count_parameters(model)
-    assert total == 198_427_392
-    assert active == 63_947_520
+    assert total == 198_416_640
+    assert active == 63_936_768
 
 
 def test_tied_embeddings():

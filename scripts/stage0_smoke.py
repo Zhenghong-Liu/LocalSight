@@ -18,7 +18,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from localsight.model import LocalsightConfig, LocalsightForCausalLM
 
-N_PARAMS = 198_427_392
+N_PARAMS = 198_416_640
 PEAK_BF16_TFLOPS = 2 * 330.0  # 2x RTX 4090
 
 

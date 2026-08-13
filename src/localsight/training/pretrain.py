@@ -18,7 +18,7 @@ from localsight.model import LocalsightForCausalLM
 from localsight.training.muon import Muon
 from localsight.utils.config import resolve_stage_config
 
-N_PARAMS = 198_427_392
+N_PARAMS = 198_416_640
 
 
 def setup_distributed() -> tuple[int, int]:

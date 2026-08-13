@@ -23,7 +23,7 @@ def test_balance_bias_updates_toward_uniform():
         gate.weight[0] = 100.0
         gate.weight[1:] = 0.0
         gate.bias.zero_()
-    x = torch.randn(16, cfg.hidden_size)
+    x = torch.rand(16, cfg.hidden_size) + 0.5  # 保证 logits 行 0 恒为正
     topk_idx, _, aux = gate(x)
     assert bool((topk_idx[:, 0] == 0).all())
 
@@ -46,7 +46,7 @@ def test_expert_specialization_shapes():
     cfg = LocalsightConfig()
     moe = MoEFeedForward(cfg)
     # 手动构造：token 只流向 0 号专家时，输出等于专家输出
-    x = torch.randn(2, 3, cfg.hidden_size)
+    x = torch.rand(2, 3, cfg.hidden_size) + 0.5
     with torch.no_grad():
         moe.gate.weight.zero_()
         moe.gate.weight[0, :] = 100.0

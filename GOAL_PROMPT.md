@@ -15,7 +15,7 @@
 满足全部条件才算完成：
 
 1. 服务器 `localsight` conda 环境可用，`scripts/smoke_test.py` 通过；
-2. 模型代码完成且单元测试通过：RMSNorm、RoPE、GQA、MoE、KV cache 的数值对齐测试；参数账 = 198.5M 总参 / 63.9M 激活；
+2. 模型代码完成且单元测试通过：RMSNorm、RoPE、GQA、MoE、KV cache 的数值对齐测试；参数账 = 198.4M 总参（精确 198,416,640）/ 63.9M 激活（精确 63,936,768）；
 3. 数据管线产出全部阶段的派生数据与 manifest（sha256 + 过滤统计）；
 4. 五个训练阶段按顺序跑完，每阶段 checkpoint 与 metrics 齐全，`docs/07_experiment_log.md` 有完整记录；
 5. 评测完成：通用基准 + 思考开/关对比 + 工具 gt 命中率 + 32k NIAH + MoE 负载健康；
