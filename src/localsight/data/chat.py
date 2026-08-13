@@ -11,7 +11,7 @@ _ASSISTANT_RE = re.compile(r"<\|im_start\|>assistant\n(.*?)<\|im_end\|>", re.DOT
 
 
 def extract_tools(messages: list[dict]) -> tuple[list[dict], Optional[list]]:
-    """把 system 消息上的 tools 字段拆出来（chat_template 用顶层 tools 参数）。"""
+    """归一化消息：system.tools（字符串→list，并拆到顶层）与 assistant.tool_calls（字符串→list）。"""
     tools = None
     cleaned = []
     for msg in messages:
@@ -25,6 +25,15 @@ def extract_tools(messages: list[dict]) -> tuple[list[dict], Optional[list]]:
                     tools = None
             elif isinstance(raw, list):
                 tools = raw
+        if msg.get("role") == "assistant" and isinstance(msg.get("tool_calls"), str):
+            raw = msg["tool_calls"]
+            if raw.strip():
+                try:
+                    msg["tool_calls"] = json.loads(raw)
+                except json.JSONDecodeError:
+                    msg.pop("tool_calls")
+            else:
+                msg.pop("tool_calls")
         cleaned.append(msg)
     return cleaned, tools
 
