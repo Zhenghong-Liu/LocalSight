@@ -31,7 +31,7 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     for name, (repo, split) in DATASETS.items():
         try:
-            kwargs = {"name": "main"} if name == "gsm8k" else {}
+            kwargs = {"name": "main"} if name == "gsm8k" else {"name": "civil_servant"} if name == "ceval" else {}
             ds = load_dataset(repo, split=split, **kwargs)
             ds.save_to_disk(str(out / name))
             print(name, "ok", len(ds))
