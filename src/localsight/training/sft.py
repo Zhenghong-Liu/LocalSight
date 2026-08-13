@@ -27,6 +27,9 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--start-checkpoint", default=None)
     parser.add_argument("--max-steps", type=int, default=None, help="冒烟测试时限制步数")
+    parser.add_argument("--micro-batch", type=int, default=None)
+    parser.add_argument("--grad-accum", type=int, default=None)
+    parser.add_argument("--no-bf16", action="store_true", help="CPU 冒烟时关闭 bf16")
     args = parser.parse_args()
 
     cfg, model_cfg = resolve_stage_config(Path(args.config))
@@ -43,15 +46,19 @@ def main() -> None:
         model = LocalsightHFForCausalLM(hf_cfg)
 
     dataset = SFTDataset(Path(args.data_dir))
+    batch = args.micro_batch or cfg["micro_batch_size"]
+    accum = args.grad_accum or cfg["grad_accum"]
+    steps_per_epoch = max(1, len(dataset) // (batch * accum))
+    warmup_steps = int(steps_per_epoch * cfg["epochs"] * cfg["warmup_ratio"])
     train_args = TrainingArguments(
         output_dir=args.output_dir,
-        per_device_train_batch_size=cfg["micro_batch_size"],
-        gradient_accumulation_steps=cfg["grad_accum"],
+        per_device_train_batch_size=batch,
+        gradient_accumulation_steps=accum,
         num_train_epochs=cfg["epochs"],
         learning_rate=cfg["lr"],
         weight_decay=cfg["wd"],
-        warmup_ratio=cfg["warmup_ratio"],
-        bf16=True,
+        warmup_steps=warmup_steps,
+        bf16=not args.no_bf16,
         logging_steps=cfg.get("log_interval", 10),
         save_steps=cfg.get("save_interval", 1000),
         save_total_limit=3,
