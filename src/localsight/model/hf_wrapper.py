@@ -77,6 +77,15 @@ class LocalsightHFForCausalLM(PreTrainedModel):
         )
         return CausalLMOutputWithPast(loss=loss, logits=logits, past_key_values=None)
 
+    def get_input_embeddings(self):
+        return self.core.model.embed_tokens
+
+    def set_input_embeddings(self, value):
+        self.core.model.embed_tokens = value
+
+    def get_output_embeddings(self):
+        return self.core.lm_head
+
     def save_pretrained(self, save_directory: str | Path, **kwargs):
         save_directory = Path(save_directory)
         save_directory.mkdir(parents=True, exist_ok=True)

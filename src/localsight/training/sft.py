@@ -31,7 +31,13 @@ def main() -> None:
     cfg, model_cfg = resolve_stage_config(Path(args.config))
     hf_cfg = LocalsightHFConfig(**model_cfg.to_dict())
     if args.start_checkpoint:
-        model = LocalsightHFForCausalLM.from_pretrained(args.start_checkpoint)
+        model = LocalsightHFForCausalLM(hf_cfg)
+        ckpt = Path(args.start_checkpoint)
+        if (ckpt / "config.json").exists():
+            model = LocalsightHFForCausalLM.from_pretrained(ckpt)
+        else:
+            state = torch.load(ckpt / "model.pt", map_location="cpu")
+            model.core.load_state_dict(state)
     else:
         model = LocalsightHFForCausalLM(hf_cfg)
 
