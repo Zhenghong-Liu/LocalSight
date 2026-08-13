@@ -3,12 +3,16 @@ import torch
 from localsight.training.muon import Muon, zeropower_via_newtonschulz5
 
 
-def test_newton_schulz_output_is_orthonormal_columns():
+def test_newton_schulz_output_shape_and_scale():
     torch.manual_seed(0)
     g = torch.randn(64, 16)
     o = zeropower_via_newtonschulz5(g, steps=5)
-    gram = o.float().T @ o.float()
-    torch.testing.assert_close(gram, torch.eye(16), atol=5e-3, rtol=5e-3)
+    assert o.shape == g.shape
+    assert torch.isfinite(o.float()).all()
+    # 官方说明：quintic NS 输出 US'V^T，S' 奇异值大致落在 0.5–1.5
+    lower = 0.5 * (16 ** 0.5)
+    upper = 1.5 * (16 ** 0.5)
+    assert lower < o.float().norm().item() < upper
 
 
 def test_muon_updates_matrix_and_vector_params():

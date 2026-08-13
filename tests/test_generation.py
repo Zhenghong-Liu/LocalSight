@@ -28,7 +28,7 @@ def test_generation_with_cache_shapes():
     assert gen.shape == (1, 9)
     assert bool((gen >= 0).all())
     assert bool((gen < 6400).all())
-    assert cache.length == 9
+    assert cache.length == 8  # 3 个 prefill token + 5 步 decode（gen 总长 9）
 
 
 def test_sampling_terminates_at_eos():

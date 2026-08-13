@@ -28,6 +28,7 @@ class LocalsightHFConfig(PretrainedConfig):
     num_attention_heads = 8
     num_key_value_heads = 4
     head_dim = 96
+    use_moe = True
     intermediate_size = 2048
     moe_intermediate_size = 2432
     num_experts = 4

@@ -18,6 +18,7 @@ def test_document_causal_mask_structure():
 
 
 def test_future_tokens_do_not_leak():
+    torch.set_num_threads(1)  # 避免 BLAS 多线程浮点非确定性干扰断言
     torch.manual_seed(0)
     cfg = LocalsightConfig()
     model = LocalsightModel(cfg)
@@ -60,6 +61,7 @@ def test_prefill_matches_incremental_decode():
 
 
 def test_document_packing_blocks_cross_doc_attention():
+    torch.set_num_threads(1)
     torch.manual_seed(2)
     cfg = LocalsightConfig()
     model = LocalsightModel(cfg)
