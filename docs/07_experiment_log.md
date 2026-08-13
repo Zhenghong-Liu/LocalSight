@@ -60,6 +60,16 @@
 - 5 epochs（约 31h）太长；改为 epoch 1 后提前结束：看门狗 04:00 停训 →
   对 checkpoint 做 model soup → 自动跑 SFT（2 epochs）→ SimPO，预计 06:30 前完成。
 
+### 实际结果（2026-08-14 07:43）
+
+- 预训练在 **01:03 因 NCCL 集合通信错误自行退出**（约 step 1060），因此只有
+  **step-1000** checkpoint（val_loss=1.6933）——没有 step-2000，无法做 soup，
+  看门狗链的 SFT/SimPO 因缺 soup 而失败。
+- 用户于 07:40 决定结束 pretrain：保留 step-1000（已复制到项目
+  `artifacts/pretrain/step-1000`，含 model.pt/optimizer.pt/state.json）。
+- 07:43 从 step-1000 启动 **SFT**（2 epochs、858 步、约 15.2s/step，预计 11:15 完成），
+  完成后手动接 SimPO。
+
 ### 路由坍缩修复（2026-08-13）
 
 - 现象：top-1 路由在 ~step 39 起单专家占比冲到 52%、另一专家跌到 4.8%。
