@@ -5,8 +5,10 @@ import json
 import re
 from dataclasses import dataclass
 
-_SCORE_RE = re.compile(r"[\"']?score[\"']?\s*[:：]\s*(-?\d+(?:\.\d+)?)", re.IGNORECASE)
-_LAST_NUM_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*$")
+_SCORE_RE = re.compile(
+    r"[\"']?(?:score|评分|分数)[\"']?\s*[:：=]\s*(-?\d+(?:\.\d+)?)", re.IGNORECASE
+)
+_LAST_NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 
 
 JUDGE_RUBRIC = """你是一名严格的回答质量裁判。请按以下维度给候选回答打分（0-10 的整数）：
@@ -15,7 +17,7 @@ JUDGE_RUBRIC = """你是一名严格的回答质量裁判。请按以下维度�
 2. 正确性（3 分）：最终回答是否准确回应了问题，无明显事实错误；
 3. 简洁性（3 分）：思考与回答是否与问题难度匹配，不冗长、不空洞。
 
-只输出一个 JSON：{"score": <0-10 的整数>}
+只输出一个 JSON：{{"score": <0-10 的整数>}}
 
 问题：
 {question}
@@ -35,10 +37,10 @@ def parse_judge_score(text: str) -> float | None:
     if match:
         score = float(match.group(1))
     else:
-        match = _LAST_NUM_RE.search(text.strip())
-        if not match:
+        nums = _LAST_NUM_RE.findall(text)
+        if not nums:
             return None
-        score = float(match.group(1))
+        score = float(nums[-1])
     return max(0.0, min(10.0, score))
 
 
