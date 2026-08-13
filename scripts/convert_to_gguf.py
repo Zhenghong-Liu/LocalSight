@@ -70,9 +70,8 @@ def main() -> None:
     except ImportError:
         raise SystemExit("需要 pip install gguf")
 
-    writer = GGUFWriter(args.out, "minimind")
+    writer = GGUFWriter(args.out, "qwen2moe")
     writer.add_name("LocalSight-198M-MoE")
-    writer.add_architecture("qwen2moe")
     writer.add_context_length(config.max_position_embeddings)
     writer.add_embedding_length(config.hidden_size)
     writer.add_block_count(config.num_hidden_layers)
@@ -90,12 +89,8 @@ def main() -> None:
         tokens[idx] = token
     writer.add_tokenizer_model("gpt2")
     writer.add_token_list(tokens)
-    model = tokenizer.tok.get_model()
-    merges = []
-    if hasattr(model, "merges"):
-        for pair in model.merges:
-            a, b = pair if isinstance(pair, tuple) else tuple(pair.split(" "))
-            merges.append(f"{a} {b}")
+    with open(Path(args.tokenizer) / "tokenizer.json", encoding="utf-8") as f:
+        merges = list(json.load(f)["model"].get("merges", []))
     if merges:
         writer.add_token_merges(merges)
 
