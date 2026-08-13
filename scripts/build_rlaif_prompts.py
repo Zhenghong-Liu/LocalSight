@@ -40,8 +40,8 @@ def main() -> None:
         if not isinstance(conv, list):
             continue
         original = [dict(m) for m in conv]
-        last_user = next(
-            (m.get("content", "") for m in reversed(original) if m.get("role") == "user"), ""
+        context = "\n".join(
+            f"{m.get('role', '')}: {m.get('content', '')}" for m in original[:-1]
         )
         messages = drop_final_empty_assistant(original)
         text = format_chat(tokenizer, messages, add_generation_prompt=True, open_thinking=True)
@@ -50,7 +50,7 @@ def main() -> None:
             continue
         prompts.append(ids)
         prompt_lens.append(len(ids))
-        questions.append(str(last_user).strip())
+        questions.append(context.strip())
 
     arr = np.full((len(prompts), args.max_len), 0, dtype=np.int32)
     for i, row in enumerate(prompts):
