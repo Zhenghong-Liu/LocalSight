@@ -123,10 +123,10 @@ class PretrainDataBuilder:
                 if len(batch) >= chunk:
                     total_tokens += self._flush(batch, tokens_file, docids_file, stats)
                     batch = []
-        if pending_texts:
-            batch.extend(self._tokenize(pending_texts))
-        if batch:
-            total_tokens += self._flush(batch, tokens_file, docids_file, stats)
+            if pending_texts:
+                batch.extend(self._tokenize(pending_texts))
+            if batch:
+                total_tokens += self._flush(batch, tokens_file, docids_file, stats)
 
         stats["tokens"] = total_tokens
         manifest = {
