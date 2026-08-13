@@ -16,6 +16,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from localsight.model import KVCache, LocalsightConfig, LocalsightForCausalLM
 from localsight.rl.agent_grpo import decode, rollout_logps
 from localsight.rl.judge import JudgeClient, RuleJudge
+from localsight.rl.judge_vllm import VLLMJudge
 from localsight.rl.losses import simpo_loss
 from localsight.tokenizer import LocalSightTokenizer
 from localsight.utils.config import resolve_stage_config
@@ -82,7 +83,11 @@ def main() -> None:
     if args.question_file:
         questions = Path(args.question_file).read_text(encoding="utf-8").splitlines()
 
-    judge: JudgeClient = RuleJudge()  # TODO(M7): 换 vLLM 版 LLM judge
+    judge: JudgeClient
+    if cfg["judge"]["kind"] == "llm":
+        judge = VLLMJudge(cfg["judge"]["model"], max_model_len=8192)
+    else:
+        judge = RuleJudge()
     k = cfg["sampling"]["k"]
     batch = cfg["micro_batch_size"]
     model.eval()
