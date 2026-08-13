@@ -12,6 +12,7 @@ from .rope import (
     yarn_attention_scale,
 )
 from .transformer import LocalsightForCausalLM, LocalsightModel, count_parameters
+from .hf_wrapper import LocalsightHFConfig, LocalsightHFForCausalLM
 
 __all__ = [
     "LocalsightConfig",
@@ -25,6 +26,8 @@ __all__ = [
     "LocalsightModel",
     "LocalsightForCausalLM",
     "count_parameters",
+    "LocalsightHFConfig",
+    "LocalsightHFForCausalLM",
     "apply_rotary_emb",
     "build_rope_cache",
     "build_rope_for_positions",
