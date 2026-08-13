@@ -2,12 +2,12 @@ extends: base.yaml
 stage: pretrain
 seed: 42
 
-dataset: pretrain_t2t.jsonl        # 全量 ~4.15B tokens；开发冒烟换 pretrain_t2t_mini.jsonl
+dataset: pretrain_t2t.jsonl        # 全量实测 2.13B tokens；开发冒烟换 pretrain_t2t_mini.jsonl
 seq_len: 4096
 packing: true
 document_aware_mask: true
 
-epochs: 5                          # 用户锁定：大语料跑 5 epochs（约 20.8B tokens）
+epochs: 5                          # 用户锁定：大语料跑 5 epochs（约 10.7B tokens）
 micro_batch_size: 32               # 每卡序列数
 grad_accum: 4
 # 有效 batch = 2 卡 x 32 x 4096 x 4 = 1,048,576 tokens

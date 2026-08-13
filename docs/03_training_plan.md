@@ -18,7 +18,7 @@
 
 | 阶段 | tokens | 时间估算（40–50% MFU） |
 | --- | --- | --- |
-| Pretrain 5 epochs（~20.8B） | 20.8B | ~21–28 h |
+| Pretrain 5 epochs（~10.7B） | 10.7B | ~24–30 h（实测吞吐） |
 | SFT 2 epochs | ~0.66B | ~1–2 h |
 | SimPO 1 epoch | ~25M | ~0.5–1 h |
 | RLAIF（采样+judge+更新）×2 | 采样 ~120M gen tokens | **12–30 h（judge 主导）** |

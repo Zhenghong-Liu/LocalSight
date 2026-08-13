@@ -58,8 +58,8 @@
 | D3 | 词表沿用提供的 6400 BPE | 词表已含思考/工具/多模态特殊 token；重训词表会推翻数据准备，收益不确定 |
 | D4 | 路由用 aux-loss-free 偏置法 + z-loss（升级 MiniMind 原版的 aux loss） | 小模型 top-1 易坍塌，DeepSeek-V3 偏置法不干扰梯度 |
 | D5 | 注意力在 4090 上用 FlashAttention-2/SDPA，不声称支持 FA3 | FA3 内核仅 Hopper（sm90）；4090 是 Ada（sm_89） |
-| D6 | pretrain 主语料用全量 7.8GB（约 4.15B tokens），mini 用作开发/冒烟 | 全量≈198M 模型 Chinchilla 最优量；mini 只有 0.61B |
-| D11 | pretrain 大语料跑 **5 epochs**（约 20.8B tokens） | 用户明确拍板；小语料仅用于开发/冒烟与 LR 扫描 |
+| D6 | pretrain 主语料用全量 7.8GB（实测 2.13B tokens），mini 用作开发/冒烟 | 全量实测 2.13B tokens；mini 实测 0.33B |
+| D11 | pretrain 大语料跑 **5 epochs**（约 10.7B tokens） | 用户明确拍板；小语料仅用于开发/冒烟与 LR 扫描 |
 | D7 | DPO 数据定位为「通用质量偏好」，不含思考格式；思考质量偏好交给 RLAIF | 实测 17,166 对全部无 `<think>` |
 | D8 | RLAIF 数据定位为「末轮留空的补全 prompt」 | 实测 19,502 条末轮 assistant 均为空串 |
 | D9 | Agent RL 用 2 万条带工具+gt 的任务，内置 6 种工具执行器 | 实测无交互环境；gt 可做结果奖励 |

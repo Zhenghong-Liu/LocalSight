@@ -11,8 +11,8 @@
 
 | 文件 | 大小 | 行数 | 顶层字段 | 平均字符 | 实测 tokens/char | 估计 tokens |
 | --- | --- | --- | --- | --- | --- | --- |
-| pretrain_t2t.jsonl | 7.8 GB | 8,468,827 | `{text}` | 719.4（中位 411） | 0.6819 | ~4.15B |
-| pretrain_t2t_mini.jsonl | 1.2 GB | 1,270,238 | `{text}` | 713.8 | 0.6766 | ~0.61B |
+| pretrain_t2t.jsonl | 7.8 GB | 8,468,827 | `{text}` | 719.4（字节加权） | 0.6819 | **2,131,183,459（实测）** |
+| pretrain_t2t_mini.jsonl | 1.2 GB | 1,270,238 | `{text}` | 713.8（字节加权） | 0.6766 | **328,903,639（实测）** |
 | sft_t2t_mini.jsonl | 1.7 GB | 905,718 | `{conversations}` | 540.0/条 | — | ~0.33B |
 | dpo.jsonl | 52 MB | 17,166 | `{chosen, rejected}` | 2084.9/条 | — | ~25M |
 | rlaif.jsonl | 23 MB | 19,502 | `{conversations}` | 402.4/条 | — | ~5M |
@@ -20,7 +20,8 @@
 
 关键结论：
 
-- 全量 pretrain ≈ 4.15B tokens，是**唯一主训语料**（按用户要求跑 5 epochs，约 20.8B tokens）；mini（约 0.61B）只用于开发、冒烟测试与 LR 扫描。
+- 全量 pretrain 实测 **2.13B tokens**，是**唯一主训语料**（按用户要求跑 5 epochs，约 10.7B tokens）；mini 实测 **0.33B**，只用于开发、冒烟测试与 LR 扫描。
+- 注意：早期文档里的 4.15B/0.61B 是「字节加权采样」的估计值，被偏置放大了；以派生数据 manifest 的实测值为准。
 - pretrain 文本以中文为主、且明显包含合成指令型文本（不是纯网页语料），需要按此设定预期并做质量过滤。
 
 ## 3. Tokenizer（沿用，不重训）

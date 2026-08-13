@@ -12,15 +12,15 @@
 
 | 数据集 | 大小 | 记录数 | 结构 | 估计 tokens |
 | --- | --- | --- | --- | --- |
-| pretrain_t2t.jsonl | 7.8 GB | 8,468,827 | `{text}` | ~4.15B |
-| pretrain_t2t_mini.jsonl | 1.2 GB | 1,270,238 | `{text}` | ~0.61B |
+| pretrain_t2t.jsonl | 7.8 GB | 8,468,827 | `{text}` | 2.13B（实测） |
+| pretrain_t2t_mini.jsonl | 1.2 GB | 1,270,238 | `{text}` | 0.33B（实测） |
 | sft_t2t_mini.jsonl | 1.7 GB | 905,718 | `{conversations}` | ~0.33B |
 | dpo.jsonl | 52 MB | 17,166 | `{chosen, rejected}` | ~25M |
 | rlaif.jsonl | 23 MB | 19,502 | `{conversations}`（末轮留空） | ~5M |
 | agent_rl.jsonl | 79 MB | 39,988 | `{conversations, gt}`（末轮留空） | ~9M |
 
 - Tokenizer：6400 词表 ByteLevel BPE，内置 `<think>`、`<tool_call>`、vision/audio/TTS 特殊 token。
-- 预训练使用大语料（约 4.15B tokens），按用户要求跑 **5 epochs**（约 20.8B tokens）；小语料只用于开发/冒烟与 LR 扫描。
+- 预训练使用大语料（实测 2.13B tokens），按用户要求跑 **5 epochs**（约 10.7B tokens）；小语料只用于开发/冒烟与 LR 扫描。
 
 ## 文档导航
 
