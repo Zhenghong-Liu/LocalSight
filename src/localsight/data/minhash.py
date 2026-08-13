@@ -83,3 +83,38 @@ def deduplicate(
             kept_sketches.append(sketch)
             kept_rows.append(row_id)
     return kept_rows
+
+
+def dedupe_sketches(
+    sketches: np.ndarray,
+    num_bands: int = 16,
+    threshold: float = 0.8,
+) -> np.ndarray:
+    """对 (N, 64) uint64 签名数组做分桶 LSH 去重，返回 keep 布尔掩码。
+
+    每个 band 用字节视图做稳定排序，比较「同 band key 的相邻行」的 Jaccard；
+    Jaccard ≥ threshold 时保留较早行。内存与 N 线性、无 Python 对象膨胀。
+    """
+    n, m = sketches.shape
+    if m % num_bands != 0:
+        raise ValueError("签名维度必须能被 band 数整除")
+    band_size = m // num_bands
+    void_dtype = f"V{band_size * 8}"
+    keep = np.ones(n, dtype=bool)
+
+    for band in range(num_bands):
+        block = np.ascontiguousarray(sketches[:, band * band_size:(band + 1) * band_size])
+        keys = block.view(void_dtype).ravel()
+        order = np.argsort(keys, kind="stable")
+        sorted_keys = keys[order]
+        equal = sorted_keys[1:] == sorted_keys[:-1]
+        idx = np.flatnonzero(equal)
+        if idx.size == 0:
+            continue
+        a = order[idx]
+        b = order[idx + 1]
+        jaccard = (sketches[a] == sketches[b]).sum(axis=1) / m
+        dup = jaccard >= threshold
+        if dup.any():
+            keep[b[dup]] = False
+    return keep
