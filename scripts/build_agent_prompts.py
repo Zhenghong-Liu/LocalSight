@@ -33,6 +33,7 @@ def main() -> None:
     ds = load_dataset("json", data_files=args.src, split="train", streaming=True)
 
     prompts: list[list[int]] = []
+    prompt_lens: list[int] = []
     gt_rows: list[list[str]] = []
     expect_tool: list[bool] = []
     for row in ds:
@@ -53,6 +54,7 @@ def main() -> None:
         if len(ids) > args.max_len:
             continue
         prompts.append(ids)
+        prompt_lens.append(len(ids))
         gt_rows.append([str(x) for x in gt])
         expect_tool.append(tools is not None)
 
@@ -60,6 +62,7 @@ def main() -> None:
     for i, row in enumerate(prompts):
         arr[i, :len(row)] = row
     arr.tofile(out_dir / "prompts.bin")
+    np.asarray(prompt_lens, dtype=np.int32).tofile(out_dir / "prompt_len.bin")
     with open(out_dir / "gt.jsonl", "w", encoding="utf-8") as f:
         for gt, tool in zip(gt_rows, expect_tool):
             f.write(json.dumps({"gt": gt, "expect_tool": tool}, ensure_ascii=False) + "\n")
