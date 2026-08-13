@@ -52,7 +52,7 @@ class MoEGate(nn.Module):
         return topk_idx, weights, {
             "z_loss": z_loss,
             "expert_counts": counts,
-            "probs": probs.detach(),
+            "probs": probs,  # 保留梯度供 balance aux loss
             "topk_idx": topk_idx.detach(),
         }
 

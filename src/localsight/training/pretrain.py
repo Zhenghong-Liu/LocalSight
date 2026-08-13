@@ -155,6 +155,9 @@ def main() -> None:
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 _, loss, aux = model(input_ids, labels=labels, document_ids=document_ids)
                 total_loss = loss + routing["z_loss_alpha"] * aux["z_loss"]
+            load_dev = (aux["expert_counts"].sum(0) / aux["expert_counts"].sum() - 0.25).abs().max().item()
+            if routing.get("aux_loss_fallback") and load_dev > routing.get("load_warn_pp", 20) / 100:
+                total_loss = total_loss + routing["aux_loss_fallback"] * aux["balance_loss"]
             acc_counts += aux["expert_counts"]
             window_tokens += input_ids.numel() * world
             total_loss = total_loss / cfg["grad_accum"]
