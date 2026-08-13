@@ -1,0 +1,168 @@
+"""Pretrain 主循环：DDP + Muon/AdamW + bf16 + MoE 偏置负载均衡 + model soup。"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import time
+from pathlib import Path
+
+import torch
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DataLoader, DistributedSampler
+
+from localsight.data import PretrainDataset
+from localsight.model import LocalsightForCausalLM
+from localsight.training.muon import Muon
+from localsight.utils.config import resolve_stage_config
+
+N_PARAMS = 198_427_392
+
+
+def setup_distributed() -> tuple[int, int]:
+    rank = int(os.environ["LOCAL_RANK"])
+    world = int(os.environ["WORLD_SIZE"])
+    torch.cuda.set_device(rank)
+    dist.init_process_group(backend="nccl")
+    return rank, world
+
+
+def cosine_schedule(step: int, warmup: int, total: int, lr: float, lr_min_ratio: float) -> float:
+    if step < warmup:
+        return lr * (step + 1) / max(1, warmup)
+    if step >= total:
+        return lr * lr_min_ratio
+    progress = (step - warmup) / max(1, total - warmup)
+    return lr * (lr_min_ratio + 0.5 * (1 - lr_min_ratio) * (1 + math.cos(math.pi * progress)))
+
+
+def save_checkpoint(
+    model: DDP,
+    optimizer: Muon,
+    path: Path,
+    step: int,
+    cfg: dict,
+    rank: int,
+) -> None:
+    if rank != 0:
+        return
+    path.mkdir(parents=True, exist_ok=True)
+    torch.save(model.module.state_dict(), path / "model.pt")
+    torch.save(optimizer.state_dict(), path / "optimizer.pt")
+    (path / "state.json").write_text(json.dumps({"step": step, "cfg": cfg}, ensure_ascii=False, indent=2))
+
+
+def soup_checkpoints(ckpt_dir: Path, out: Path, keep: int = 3) -> None:
+    ckpts = sorted(ckpt_dir.glob("step-*"), key=lambda p: int(p.name.split("-")[1]))
+    if len(ckpts) < 2:
+        return
+    selected = ckpts[-keep:]
+    states = [torch.load(p / "model.pt", map_location="cpu") for p in selected]
+    soup = {}
+    for key in states[0]:
+        soup[key] = sum(s[key].float() for s in states) / len(states)
+    out.mkdir(parents=True, exist_ok=True)
+    torch.save(soup, out / "model.pt")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--data-dir", required=True, help="已构建的 processed/pretrain 目录")
+    args = parser.parse_args()
+
+    rank, world = setup_distributed()
+    cfg, model_cfg = resolve_stage_config(Path(args.config))
+    torch.manual_seed(cfg.get("seed", 42) + rank)
+
+    model = LocalsightForCausalLM(model_cfg).to(dtype=torch.bfloat16)
+    model = DDP(model, device_ids=[rank])
+    optimizer = Muon(
+        model.parameters(),
+        lr=cfg["lr"],
+        momentum=cfg["optimizer"]["muon_momentum"],
+        ns_steps=cfg["optimizer"]["muon_ns_steps"],
+        muon_scale=cfg["optimizer"]["muon_scale"],
+        wd=cfg["wd"],
+        betas=tuple(cfg["optimizer"]["adam_betas"]),
+    )
+
+    dataset = PretrainDataset(Path(args.data_dir))
+    sampler = DistributedSampler(dataset, num_replicas=world, rank=rank, shuffle=True, seed=cfg.get("seed", 42))
+    loader = DataLoader(dataset, batch_size=cfg["micro_batch_size"], sampler=sampler, pin_memory=True)
+
+    total_steps = len(loader) * cfg["epochs"] // cfg["grad_accum"]
+    warmup = int(total_steps * cfg["warmup_ratio"])
+    routing = cfg["routing"]
+    step = 0
+    start = time.time()
+    window_tokens = 0
+    window_start = start
+    acc_counts = torch.zeros(
+        model_cfg.num_hidden_layers,
+        model_cfg.num_experts,
+        device=f"cuda:{rank}",
+    )
+
+    for epoch in range(cfg["epochs"]):
+        sampler.set_epoch(epoch)
+        for batch in loader:
+            input_ids = batch["input_ids"].cuda(rank, non_blocking=True)
+            labels = batch["labels"].cuda(rank, non_blocking=True)
+            document_ids = batch["document_ids"].cuda(rank, non_blocking=True)
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                _, loss, aux = model(input_ids, labels=labels, document_ids=document_ids)
+                total_loss = loss + routing["z_loss_alpha"] * aux["z_loss"]
+            acc_counts += aux["expert_counts"]
+            window_tokens += input_ids.numel() * world
+            total_loss = total_loss / cfg["grad_accum"]
+            total_loss.backward()
+
+            if (step + 1) % cfg["grad_accum"] == 0:
+                grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), cfg["grad_clip"]).item()
+                lr = cosine_schedule(step // cfg["grad_accum"], warmup, total_steps, cfg["lr"], cfg["lr_min_ratio"])
+                for group in optimizer.param_groups:
+                    group["lr"] = lr
+                optimizer.step()
+                optimizer.zero_grad()
+                optimizer_step = step // cfg["grad_accum"]
+
+                counts = acc_counts.clone()
+                for i, layer in enumerate(model.module.model.layers):
+                    layer.mlp.gate.update_balance_bias(counts[i], gamma=routing["balance_gamma"])
+                acc_counts.zero_()
+
+                if rank == 0 and (optimizer_step + 1) % cfg["log_interval"] == 0:
+                    dt = time.time() - window_start
+                    tokens_per_sec = window_tokens / max(dt, 1e-6)
+                    mfu = (6 * N_PARAMS * tokens_per_sec) / (2 * 330e12)
+                    frac = (counts.sum(0) / counts.sum()).tolist()
+                    print(
+                        f"step={optimizer_step} loss={loss.item():.4f} z={aux['z_loss'].item():.4f} "
+                        f"grad={grad_norm:.2f} lr={lr:.2e} tok/s={tokens_per_sec:.0f} "
+                        f"mfu={mfu*100:.1f}% load={[round(f, 3) for f in frac]}"
+                    )
+                    window_tokens = 0
+                    window_start = time.time()
+
+                if (optimizer_step + 1) % cfg["save_interval"] == 0:
+                    ckpt = Path(cfg["artifacts_dir"]) / "pretrain" / f"step-{optimizer_step + 1}"
+                    save_checkpoint(model, optimizer, ckpt, optimizer_step + 1, cfg, rank)
+                    dist.barrier()
+            step += 1
+
+    dist.barrier()
+    soup_checkpoints(
+        Path(cfg["artifacts_dir"]) / "pretrain",
+        Path(cfg["artifacts_dir"]) / "pretrain" / "soup",
+        keep=cfg["soup_last_n"],
+    )
+    if rank == 0:
+        print(f"pretrain 完成，总耗时 {(time.time() - start)/3600:.2f} h")
+    dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()
