@@ -50,6 +50,13 @@ torchrun --nproc_per_node=2 scripts/smoke_test.py
 
 - 远程：`https://github.com/Zhenghong-Liu/LocalSight.git`（main 分支）。
 - 本地 mac 已 `git remote add origin`；日常：在 `codex/*` 分支开发 → 合并 main → push。
+- 本地直连 GitHub 偶尔超时，推送失败时走代理：
+
+```bash
+export https_proxy=http://127.0.0.1:7897 http_proxy=http://127.0.0.1:7897 all_proxy=socks5://127.0.0.1:7897
+git push origin main
+```
+
 - 服务器只做「拉取 + 训练」，**不在服务器上改代码提交**（紧急修复走 PR 回流，避免双写冲突）：
 
 ```bash
