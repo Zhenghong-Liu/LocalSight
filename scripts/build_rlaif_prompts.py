@@ -34,23 +34,32 @@ def main() -> None:
 
     prompts: list[list[int]] = []
     prompt_lens: list[int] = []
+    questions: list[str] = []
     for row in ds:
         conv = row.get("conversations")
         if not isinstance(conv, list):
             continue
-        messages = drop_final_empty_assistant([dict(m) for m in conv])
+        original = [dict(m) for m in conv]
+        last_user = next(
+            (m.get("content", "") for m in reversed(original) if m.get("role") == "user"), ""
+        )
+        messages = drop_final_empty_assistant(original)
         text = format_chat(tokenizer, messages, add_generation_prompt=True, open_thinking=True)
         ids = tokenizer.encode(text)
         if len(ids) > args.max_len:
             continue
         prompts.append(ids)
         prompt_lens.append(len(ids))
+        questions.append(str(last_user).strip())
 
     arr = np.full((len(prompts), args.max_len), 0, dtype=np.int32)
     for i, row in enumerate(prompts):
         arr[i, :len(row)] = row
     arr.tofile(out_dir / "prompts.bin")
     np.asarray(prompt_lens, dtype=np.int32).tofile(out_dir / "prompt_len.bin")
+    with open(out_dir / "questions.jsonl", "w", encoding="utf-8") as f:
+        for q in questions:
+            f.write(json.dumps(q, ensure_ascii=False) + "\n")
     manifest = {"source": args.src, "max_len": args.max_len, "prompts": len(prompts)}
     (out_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
     print(json.dumps(manifest, ensure_ascii=False, indent=2))

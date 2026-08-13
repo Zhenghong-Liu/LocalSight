@@ -81,7 +81,7 @@ def main() -> None:
     n_prompts = manifest["prompts"]
     questions = []
     if args.question_file:
-        questions = Path(args.question_file).read_text(encoding="utf-8").splitlines()
+        questions = [json.loads(line) for line in Path(args.question_file).read_text(encoding="utf-8").splitlines() if line.strip()]
 
     judge: JudgeClient
     if cfg["judge"]["kind"] == "llm":
