@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 B = Path("/home/sodastar/project/LocalSight")
+PRETRAIN_CKPT_DIR = Path.home() / "artifacts" / "pretrain"  # 训练进程 cwd 为 home
 LOG = B / "artifacts" / "early_finish.log"
 ENV = {
     **os.environ,
@@ -48,7 +49,7 @@ def main() -> None:
             str(B / ".venv/bin/python"),
             "-c",
             "from pathlib import Path; from localsight.training.pretrain import soup_checkpoints; "
-            "soup_checkpoints(Path('artifacts/pretrain'), Path('artifacts/pretrain/soup'), keep=3); "
+            f"soup_checkpoints(Path('{PRETRAIN_CKPT_DIR}'), Path('{B}/artifacts/pretrain/soup'), keep=3); "
             "print('SOUP_OK')",
         ],
         "model soup",
