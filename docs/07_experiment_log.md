@@ -67,6 +67,7 @@
 - dpo：17,166 对；agent_prompts：20,000（全部带工具+gt）；rlaif_prompts：19,502。
 - sft：905,718 条对话 → 54,873 序列（8192），449,519,616 tokens。
 - rlaif questions.jsonl：19,502 条完整对话历史（供 judge 上下文）。
+- judge 模型就绪：Qwen2.5-7B-Instruct 已完整下载（15GB，hf-mirror）。
 
 ## Run 记录
 
