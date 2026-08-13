@@ -16,7 +16,7 @@ from datasets import load_dataset
 
 DATASETS = {
     "mmlu": ("cais/mmlu", "test"),
-    "cmmlu": ("haonan-li/cmmlu", "test"),
+    # "cmmlu": ("haonan-li/cmmlu", "test"),  # 脚本数据集 hf-mirror 不再支持，改用 OpenCompass 数据
     "ceval": ("ceval/ceval-exam", "test"),
     "gsm8k": ("openai/gsm8k", "test"),
     "ifeval": ("google/IFEval", "train"),
@@ -31,7 +31,12 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     for name, (repo, split) in DATASETS.items():
         try:
-            kwargs = {"name": "main"} if name == "gsm8k" else {"name": "civil_servant"} if name == "ceval" else {}
+            kwargs = (
+                {"name": "all"} if name == "mmlu"
+                else {"name": "main"} if name == "gsm8k"
+                else {"name": "civil_servant"} if name == "ceval"
+                else {}
+            )
             ds = load_dataset(repo, split=split, **kwargs)
             ds.save_to_disk(str(out / name))
             print(name, "ok", len(ds))
