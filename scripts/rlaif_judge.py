@@ -1,26 +1,10 @@
 #!/usr/bin/env python3
-"""RLAIF 阶段 B：vLLM judge 打分，输出 scored jsonl（每个样本加 score 字段）。"""
+"""RLAIF 阶段 B：transformers judge 打分，输出 scored jsonl（每个样本加 score 字段）。"""
 from __future__ import annotations
 
 import argparse
 import json
-import os
-import sys
 from pathlib import Path
-
-_site = Path(sys.prefix) / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
-_cuda_home = _site / "nvidia" / "cuda_nvcc"
-os.environ["CUDA_HOME"] = str(_cuda_home)
-os.environ["CUDA_PATH"] = str(_cuda_home)
-os.environ["PATH"] = (
-    str(_cuda_home / "bin")
-    + os.pathsep
-    + str(Path(sys.prefix) / "bin")
-    + os.pathsep
-    + os.environ.get("PATH", "")
-)
-
-from vllm import LLM, SamplingParams
 
 from localsight.rl.judge import build_judge_prompt, parse_judge_score
 
@@ -42,9 +26,13 @@ def main() -> None:
             if line.strip():
                 records.append(json.loads(line))
 
-    llm = LLM(model=args.judge_model, tensor_parallel_size=1, dtype="bfloat16",
-              max_model_len=8192, gpu_memory_utilization=0.95)
-    sampling = SamplingParams(temperature=0.0, max_tokens=128)
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.judge_model)
+    judge = AutoModelForCausalLM.from_pretrained(
+        args.judge_model, torch_dtype=torch.bfloat16, device_map="cuda:0"
+    ).eval()
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -54,9 +42,18 @@ def main() -> None:
             judge_prompts = [
                 build_judge_prompt(questions[r["idx"]], r["text"]) for r in chunk
             ]
-            outputs = llm.generate(judge_prompts, sampling)
-            for rec, out in zip(chunk, outputs):
-                raw = out.outputs[0].text
+            inputs = tokenizer(
+                judge_prompts, return_tensors="pt", padding=True,
+                truncation=True, max_length=4096,
+            ).to("cuda:0")
+            with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+                outputs = judge.generate(
+                    **inputs, max_new_tokens=128, do_sample=False,
+                    pad_token_id=tokenizer.eos_token_id,
+                )
+            new_tokens = outputs[:, inputs["input_ids"].shape[1]:]
+            for rec, ids in zip(chunk, new_tokens):
+                raw = tokenizer.decode(ids, skip_special_tokens=True)
                 score = parse_judge_score(raw)
                 rec["score"] = score if score is not None else 0.0
                 rec["judge_raw"] = raw
