@@ -166,6 +166,8 @@ def rollout_prompt_batch(
     返回 (full_ids (G,L), texts, gen_mask (G,L-1))。
     """
     device = prompt_ids.device
+    cap = int(cfg.get("prompt_max_len", 2048))
+    prompt_ids = prompt_ids[:, :cap]
     plen = prompt_ids.shape[1]
     ids_b = prompt_ids.repeat(group_size, 1)
     cache = KVCache(
@@ -217,6 +219,7 @@ def main() -> None:
     state = torch.load(Path(args.start_checkpoint) / "model.pt", map_location="cpu")
     model.load_state_dict(state)
     model = DDP(model, device_ids=[rank])
+    model.module.model.gradient_checkpointing = True  # 控制 cur-logps 显存
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=0.0)
 
     prompts = np.memmap(Path(args.data_dir) / "prompts.bin", dtype=np.int32, mode="r")

@@ -6,6 +6,7 @@ dataset: agent_rl.jsonl           # v1 只用带 tools+gt 的 20000 条
 seq_len: 8192
 max_new_tokens: 1024
 max_tool_rounds: 3
+prompt_max_len: 2048
 
 algorithm: grpo_dapo
 sampling:
