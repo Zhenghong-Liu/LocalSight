@@ -59,7 +59,7 @@ def main() -> None:
             )
             cache = KVCache(
                 cfg.num_hidden_layers, 1, cfg.num_key_value_heads, cfg.head_dim,
-                args.max_new + plen + 8, dtype=torch.bfloat16, device=device,
+                args.max_new + plen + 8, dtype=torch.float32, device=device,
             )
             model(prompt_ids, cache=cache)
             cache.commit()

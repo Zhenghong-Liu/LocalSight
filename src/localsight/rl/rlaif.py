@@ -37,7 +37,7 @@ def sample_k(
         model.module.config.num_key_value_heads,
         model.module.config.head_dim,
         max_new + prompt_ids.shape[1] + 8,
-        dtype=torch.bfloat16,
+        dtype=torch.float32,
         device=prompt_ids.device,
     )
     model(prompt_ids, cache=cfg_cache)

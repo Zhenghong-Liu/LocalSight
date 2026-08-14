@@ -67,7 +67,7 @@ def rollout_one(
 
     cache = KVCache(
         cfg["model_cfg"].num_hidden_layers, 1, cfg["model_cfg"].num_key_value_heads,
-        cfg["model_cfg"].head_dim, cfg["seq_len"], dtype=torch.bfloat16, device=device,
+        cfg["model_cfg"].head_dim, cfg["seq_len"], dtype=torch.float32, device=device,
     )
     model(prompt_ids, cache=cache)
     cache.commit()
