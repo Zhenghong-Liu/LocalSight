@@ -35,7 +35,8 @@ def decode(
     """从 current_ids 继续解码直到 stop token；返回 (完整新 tokens, 解码文本)。"""
     generated: list[int] = []
     for _ in range(max_new):
-        logits = model(current_ids, cache=cache)[0]
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            logits = model(current_ids, cache=cache)[0]
         cache.commit()
         next_logits = logits[:, -1, :]
         if temperature <= 0:
@@ -67,9 +68,10 @@ def rollout_one(
 
     cache = KVCache(
         cfg["model_cfg"].num_hidden_layers, 1, cfg["model_cfg"].num_key_value_heads,
-        cfg["model_cfg"].head_dim, cfg["seq_len"], dtype=torch.float32, device=device,
+        cfg["model_cfg"].head_dim, cfg["seq_len"], dtype=torch.bfloat16, device=device,
     )
-    model(prompt_ids, cache=cache)
+    with torch.autocast("cuda", dtype=torch.bfloat16):
+        model(prompt_ids, cache=cache)
     cache.commit()
     all_ids = prompt_ids.clone()
     gen_mask = torch.zeros(all_ids.shape[1], dtype=torch.bool, device=device)
