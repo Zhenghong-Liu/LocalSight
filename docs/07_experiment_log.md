@@ -84,6 +84,12 @@
 - rlaif questions.jsonl：19,502 条完整对话历史（供 judge 上下文）。
 - judge 模型就绪：Qwen2.5-7B-Instruct 已完整下载（15GB，hf-mirror）。
 
+### 后续阶段进展（2026-08-14）
+
+- SFT 2 epochs 完成（artifacts/sft/final）；SimPO 完成（artifacts/dpo/model.pt，margin 转正）。
+- RLAIF 第一轮完成：8k prompts × K=2 采样 → transformers 7B judge 打分（vLLM 因 nvcc/JIT 兼容问题弃用）→ SimPO → artifacts/rlaif_round1/model.pt。
+- RLAIF 第二轮启动中（同样 8k × K=2），预计数小时。
+
 ## Run 记录
 
 - 阶段：
