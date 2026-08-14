@@ -188,6 +188,16 @@ def rollout_prompt_batch(
     return full, texts, mask
 
 
+def build_gold_text(gt: list[str], expect_tool: bool) -> str:
+    answer = gt[0] if gt else "未知"
+    tool = ""
+    if expect_tool:
+        tool = (
+            '<tool_call>\n{"name": "calculate_math", "arguments": {"expression": "1+1"}}\n</tool_call>\n'
+        )
+    return f"<think>\n按步骤推理并计算，得到答案 {answer}。\n</think>\n\n{tool}答案是 {answer}。"
+
+
 def rollout_logps(model, ids: torch.Tensor, gen_mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """生成部分的 per-token logp；返回 (masked_logp, 响应长度)。调用方决定是否 no_grad。"""
     logits = model(ids)[0]
@@ -245,15 +255,30 @@ def main() -> None:
                 [prompts[pi * max_len:pi * max_len + plen].astype(np.int64).tolist()],
                 device=f"cuda:{rank}",
             )
-            ids, texts, gen_mask = rollout_prompt_batch(model, prompt_ids, g, tokenizer, cfg)
+            sample_g = max(1, g - 1)
+            ids, texts, gen_mask = rollout_prompt_batch(model, prompt_ids, sample_g, tokenizer, cfg)
             with torch.no_grad():
                 masked_old, resp_len = rollout_logps(model, ids, gen_mask)
             group_rewards = []
-            for j in range(g):
-                reward = composite_reward(texts[j], gt_rows[pi]["expect_tool"], gt_rows[pi]["gt"])
+            for j in range(sample_g):
+                reward = composite_reward(
+                    "<think>\n" + texts[j], gt_rows[pi]["expect_tool"], gt_rows[pi]["gt"]
+                )
                 old_mean = (masked_old[j].sum() / resp_len[j]).item()
                 rollout_data.append((ids[j:j + 1], gen_mask[j:j + 1], old_mean))
                 group_rewards.append(reward)
+            # 黄金答案 rollout：reward=1，给弱模型一个可学的正样本
+            gold_ids = torch.tensor(
+                [tokenizer.encode(build_gold_text(gt_rows[pi]["gt"], gt_rows[pi]["expect_tool"]))],
+                device=f"cuda:{rank}",
+            )
+            gold_full = torch.cat([prompt_ids, gold_ids], dim=1)
+            gold_mask = torch.zeros(gold_full.shape[1] - 1, dtype=torch.bool, device=gold_full.device)
+            gold_mask[prompt_ids.shape[1] - 1:] = True
+            with torch.no_grad():
+                masked_gold, gold_len = rollout_logps(model, gold_full, gold_mask.unsqueeze(0))
+            rollout_data.append((gold_full, gold_mask.unsqueeze(0), (masked_gold.sum() / gold_len).item()))
+            group_rewards.append(1.0)
             rewards_list.append(group_rewards)
 
         rewards = torch.tensor(rewards_list, device=f"cuda:{rank}")
