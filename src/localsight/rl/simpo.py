@@ -66,7 +66,6 @@ def main() -> None:
     if args.start_checkpoint:
         model.load_state_dict(torch.load(Path(args.start_checkpoint) / "model.pt", map_location="cpu"))
     model = DDP(model, device_ids=[rank], find_unused_parameters=True)
-    model._set_static_graph()  # 每步 chosen/rejected 两次前向共用同一计算图
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=0.0)
 
     dataset = DPODataset(Path(args.data_dir))
@@ -80,8 +79,12 @@ def main() -> None:
         ids_r = batch["rejected_ids"].cuda(rank)
         pl = batch["prompt_len"].cuda(rank)
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            lp_c, len_c = response_logps(model, ids_c, pl)
-            lp_r, len_r = response_logps(model, ids_r, pl)
+            # 单次前向同时算 chosen/rejected，保证 DDP 计算图每步一致
+            ids = torch.cat([ids_c, ids_r], dim=0)
+            pl_all = torch.cat([pl, pl], dim=0)
+            masked, resp_len = response_logps(model, ids, pl_all)
+            lp_c, lp_r = masked.chunk(2, dim=0)
+            len_c, len_r = resp_len.chunk(2, dim=0)
             pi_c = lp_c.sum(dim=-1) / len_c
             pi_r = lp_r.sum(dim=-1) / len_r
             loss = simpo_loss(pi_c[:, None], pi_r[:, None], beta=cfg["beta"], gamma=cfg["gamma"])
