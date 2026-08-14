@@ -70,11 +70,19 @@ def main() -> None:
             ids_c = torch.tensor([prefix + chosen], device=device)
             ids_r = torch.tensor([prefix + rejected], device=device)
             pl = torch.tensor([len(prefix)], device=device)
+            max_len_pair = max(ids_c.shape[1], ids_r.shape[1])
+            ids_c = torch.nn.functional.pad(ids_c, (0, max_len_pair - ids_c.shape[1]), value=0)
+            ids_r = torch.nn.functional.pad(ids_r, (0, max_len_pair - ids_r.shape[1]), value=0)
+            resp_len_c = torch.tensor([len(chosen)], device=device)
+            resp_len_r = torch.tensor([len(rejected)], device=device)
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 ids = torch.cat([ids_c, ids_r], dim=0)
                 logits = model(ids)[0]
                 shift = F.log_softmax(logits, dim=-1)[:, :-1].gather(-1, ids[:, 1:, None]).squeeze(-1)
-                mask = torch.arange(shift.shape[1], device=device)[None] >= (torch.cat([pl, pl]) - 1)[:, None]
+                positions = torch.arange(shift.shape[1], device=device)[None]
+                start = (torch.cat([pl, pl]) - 1)[:, None]
+                end = start + torch.cat([resp_len_c, resp_len_r])[:, None]
+                mask = (positions >= start) & (positions < end)
                 resp_len = mask.sum(-1).clamp(min=1)
                 pi = (shift * mask).sum(-1) / resp_len
                 pi_c, pi_r = pi[:1], pi[1:]
