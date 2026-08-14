@@ -53,6 +53,55 @@ def decode(
     return torch.tensor([generated], dtype=torch.long, device=cache.device), text
 
 
+@torch.no_grad()
+def decode_batch(
+    model,
+    cache: KVCache,
+    ids: torch.Tensor,
+    tokenizer,
+    max_new: int,
+    temperature: float,
+    top_p: float,
+    stop_id: int,
+) -> tuple[torch.Tensor, list[str]]:
+    """批量解码：ids (B,1)，返回 (B, max_new) 与每条文本。"""
+    device = ids.device
+    batch_size = ids.shape[0]
+    generated = torch.full((batch_size, max_new), 0, dtype=torch.long, device=device)
+    active = torch.ones(batch_size, dtype=torch.bool, device=device)
+    last_step = max_new - 1
+    for step in range(max_new):
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            logits = model(ids, cache=cache)[0]
+        cache.commit()
+        next_logits = logits[:, -1, :]
+        if temperature <= 0:
+            token = next_logits.argmax(dim=-1)
+        else:
+            probs = torch.softmax(next_logits / temperature, dim=-1)
+            sorted_p, sorted_idx = probs.sort(dim=-1, descending=True)
+            cum = sorted_p.cumsum(dim=-1)
+            cutoff = cum > top_p
+            cutoff[..., 1:] = cutoff[..., :-1].clone()
+            cutoff[..., 0] = False
+            sorted_p = sorted_p.masked_fill(cutoff, 0.0)
+            sorted_p /= sorted_p.sum(dim=-1, keepdim=True).clamp(min=1e-9)
+            token = sorted_idx.gather(-1, torch.multinomial(sorted_p, 1)).squeeze(-1)
+        generated[:, step] = token
+        token = token.unsqueeze(1)
+        token[~active] = 0
+        ids = token
+        active &= token.squeeze(1) != stop_id
+        if not active.any():
+            last_step = step
+            break
+    texts = [
+        tokenizer.decode(generated[i, :last_step + 1].tolist())
+        for i in range(batch_size)
+    ]
+    return generated, texts
+
+
 def rollout_one(
     model,
     prompt_ids: torch.Tensor,

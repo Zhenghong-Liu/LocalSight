@@ -13,7 +13,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from localsight.model import KVCache, LocalsightConfig, LocalsightForCausalLM
-from localsight.rl.agent_grpo import decode
+from localsight.rl.agent_grpo import decode_batch
 from localsight.tokenizer import LocalSightTokenizer
 
 
@@ -24,6 +24,7 @@ def main() -> None:
     parser.add_argument("--out", required=True)
     parser.add_argument("--tokenizer", default="data/tokenizer")
     parser.add_argument("--k", type=int, default=4)
+    parser.add_argument("--limit", type=int, default=0, help="只采样前 N 个 prompt（0=全部）")
     parser.add_argument("--temperature", type=float, default=0.8)
     parser.add_argument("--max-new", type=int, default=512)
     args = parser.parse_args()
@@ -44,7 +45,7 @@ def main() -> None:
     prompts = np.memmap(data_dir / "prompts.bin", dtype=np.int32, mode="r")
     prompt_lens = np.memmap(data_dir / "prompt_len.bin", dtype=np.int32, mode="r")
     manifest = json.loads((data_dir / "manifest.json").read_text())
-    n = manifest["prompts"]
+    n = manifest["prompts"] if args.limit <= 0 else min(manifest["prompts"], args.limit)
     max_len = manifest["max_len"]
     out_file = Path(args.out) / f"samples_rank{rank}.jsonl"
     out_file.parent.mkdir(parents=True, exist_ok=True)
@@ -57,17 +58,17 @@ def main() -> None:
                 [prompts[pi * max_len:pi * max_len + plen].astype(np.int64).tolist()],
                 device=device,
             )
+            batch_ids = prompt_ids.repeat(args.k, 1)
             cache = KVCache(
-                cfg.num_hidden_layers, 1, cfg.num_key_value_heads, cfg.head_dim,
+                cfg.num_hidden_layers, args.k, cfg.num_key_value_heads, cfg.head_dim,
                 args.max_new + plen + 8, dtype=torch.bfloat16, device=device,
             )
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                model(prompt_ids, cache=cache)
+                model(batch_ids, cache=cache)
             cache.commit()
-            children = cache.spawn(args.k)
-            for child in children:
-                ids, text = decode(model, child, prompt_ids[:, -1:], tokenizer,
-                                   args.max_new, args.temperature, 0.95, {tokenizer.im_end_id})
+            _, texts = decode_batch(model, cache, batch_ids[:, -1:], tokenizer,
+                                    args.max_new, args.temperature, 0.95, tokenizer.im_end_id)
+            for text in texts:
                 f.write(json.dumps({"idx": pi, "text": text}, ensure_ascii=False) + "\n")
             if pi % 1000 == 0 and rank == 0:
                 print(f"rank0 sampled {pi}/{n}", flush=True)

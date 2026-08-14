@@ -38,7 +38,9 @@ def main() -> None:
          "--data-dir", str(B / "data/processed/rlaif_prompts"),
          "--out", str(B / "artifacts/rlaif"),
          "--tokenizer", str(B / "data/tokenizer"),
-         "--k", "4"],
+         "--k", "2",
+         "--max-new", "256",
+         "--limit", "8000"],
         "采样",
     )
     run(
