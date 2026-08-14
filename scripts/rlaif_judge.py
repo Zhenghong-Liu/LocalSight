@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
+
+os.environ["PATH"] = str(Path(sys.prefix) / "bin") + os.pathsep + os.environ.get("PATH", "")
 
 from vllm import LLM, SamplingParams
 
