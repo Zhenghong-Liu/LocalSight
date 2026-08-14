@@ -153,11 +153,44 @@ def rollout_one(
     return all_ids, "".join(texts), gen_mask
 
 
+@torch.no_grad()
+def rollout_prompt_batch(
+    model,
+    prompt_ids: torch.Tensor,
+    group_size: int,
+    tokenizer,
+    cfg: dict,
+) -> tuple[torch.Tensor, list[str], torch.Tensor]:
+    """G 条 rollout 批量解码（单轮生成，含 think+tool_call+答案）。
+
+    返回 (full_ids (G,L), texts, gen_mask (G,L-1))。
+    """
+    device = prompt_ids.device
+    plen = prompt_ids.shape[1]
+    ids_b = prompt_ids.repeat(group_size, 1)
+    cache = KVCache(
+        cfg["model_cfg"].num_hidden_layers, group_size,
+        cfg["model_cfg"].num_key_value_heads, cfg["model_cfg"].head_dim,
+        plen + cfg["max_new_tokens"] + 8, dtype=torch.bfloat16, device=device,
+    )
+    with torch.autocast("cuda", dtype=torch.bfloat16):
+        model(ids_b, cache=cache)
+    cache.commit()
+    gen_ids, texts = decode_batch(
+        model, cache, ids_b[:, -1:], tokenizer, cfg["max_new_tokens"],
+        cfg["sampling"]["temperature"], cfg["sampling"]["top_p"], tokenizer.im_end_id,
+    )
+    full = torch.cat([ids_b, gen_ids], dim=1)
+    mask = torch.zeros(full.shape[1] - 1, dtype=torch.bool, device=device)[None].repeat(group_size, 1)
+    mask[:, plen - 1:] = True
+    return full, texts, mask
+
+
 def rollout_logps(model, ids: torch.Tensor, gen_mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """生成部分的 per-token logp；返回 (masked_logp, 响应长度)。调用方决定是否 no_grad。"""
     logits = model(ids)[0]
     shift = F.log_softmax(logits, dim=-1)[:, :-1].gather(-1, ids[:, 1:, None]).squeeze(-1)
-    mask = gen_mask[1:].unsqueeze(0)
+    mask = gen_mask
     return shift * mask, mask.sum(dim=-1).clamp(min=1)
 
 
@@ -168,6 +201,7 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--tokenizer", default="data/tokenizer")
     parser.add_argument("--start-checkpoint", required=True)
+    parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
 
     rank = int(os.environ["LOCAL_RANK"])
@@ -187,9 +221,10 @@ def main() -> None:
 
     prompts = np.memmap(Path(args.data_dir) / "prompts.bin", dtype=np.int32, mode="r")
     prompt_lens = np.memmap(Path(args.data_dir) / "prompt_len.bin", dtype=np.int32, mode="r")
-    max_len = json.loads((Path(args.data_dir) / "manifest.json").read_text())["max_len"]
-    n_prompts = prompts.shape[0] // max_len
-    gt_rows = [json.loads(line) for line in open(Path(args.data_dir) / "gt.jsonl", encoding="utf-8")]
+    manifest = json.loads((Path(args.data_dir) / "manifest.json").read_text())
+    max_len = manifest["max_len"]
+    n_prompts = manifest["prompts"] if args.limit <= 0 else min(manifest["prompts"], args.limit)
+    gt_rows = [json.loads(line) for line in open(Path(args.data_dir) / "gt.jsonl", encoding="utf-8")][:n_prompts]
 
     model.eval()
     g = cfg["sampling"]["group_size"]
@@ -207,25 +242,32 @@ def main() -> None:
                 [prompts[pi * max_len:pi * max_len + plen].astype(np.int64).tolist()],
                 device=f"cuda:{rank}",
             )
+            ids, texts, gen_mask = rollout_prompt_batch(model, prompt_ids, g, tokenizer, cfg)
+            with torch.no_grad():
+                masked_old, resp_len = rollout_logps(model, ids, gen_mask)
             group_rewards = []
-            for _ in range(g):
-                ids, text, gen_mask = rollout_one(model, prompt_ids, tokenizer, cfg)
-                with torch.no_grad():
-                    masked_old, resp_len = rollout_logps(model, ids, gen_mask)
-                reward = composite_reward(text, gt_rows[pi]["expect_tool"], gt_rows[pi]["gt"])
-                old_mean = (masked_old.sum() / resp_len).item()
-                rollout_data.append((ids, gen_mask, old_mean))
+            for j in range(g):
+                reward = composite_reward(texts[j], gt_rows[pi]["expect_tool"], gt_rows[pi]["gt"])
+                old_mean = (masked_old[j].sum() / resp_len[j]).item()
+                rollout_data.append((ids[j:j + 1], gen_mask[j:j + 1], old_mean))
                 group_rewards.append(reward)
             rewards_list.append(group_rewards)
 
         rewards = torch.tensor(rewards_list, device=f"cuda:{rank}")
         advantages = group_advantages(rewards)
         model.train()
-        cur_means = []
-        for ids, gen_mask, _ in rollout_data:
-            masked_cur, resp_len = rollout_logps(model, ids, gen_mask)  # 保留梯度
-            cur_means.append((masked_cur.sum() / resp_len).unsqueeze(0))
-        cur = torch.cat(cur_means)
+        max_l = max(ids.shape[1] for ids, _, _ in rollout_data)
+        ids_all = torch.cat(
+            [torch.nn.functional.pad(ids, (0, max_l - ids.shape[1]), value=0) for ids, _, _ in rollout_data],
+            dim=0,
+        )
+        mask_all = torch.cat(
+            [torch.nn.functional.pad(gen_mask, (0, max_l - 1 - gen_mask.shape[1]), value=False)
+             for _, gen_mask, _ in rollout_data],
+            dim=0,
+        )
+        masked_cur, resp_len = rollout_logps(model, ids_all, mask_all)  # 单次前向保留梯度
+        cur = masked_cur.sum(dim=-1) / resp_len
         old = torch.tensor([x[2] for x in rollout_data], device=f"cuda:{rank}")
         loss = grpo_dapo_loss(
             old.unsqueeze(1), cur.unsqueeze(1), advantages.reshape(-1),
