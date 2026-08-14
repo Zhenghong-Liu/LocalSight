@@ -9,10 +9,13 @@ import sys
 from pathlib import Path
 
 _site = Path(sys.prefix) / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+_cuda_home = _site / "nvidia" / "cuda_nvcc"
+os.environ["CUDA_HOME"] = str(_cuda_home)
+os.environ["CUDA_PATH"] = str(_cuda_home)
 os.environ["PATH"] = (
-    str(Path(sys.prefix) / "bin")
+    str(_cuda_home / "bin")
     + os.pathsep
-    + str(_site / "nvidia" / "cuda_nvcc" / "bin")
+    + str(Path(sys.prefix) / "bin")
     + os.pathsep
     + os.environ.get("PATH", "")
 )
