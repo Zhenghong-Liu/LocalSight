@@ -8,7 +8,14 @@ import os
 import sys
 from pathlib import Path
 
-os.environ["PATH"] = str(Path(sys.prefix) / "bin") + os.pathsep + os.environ.get("PATH", "")
+_site = Path(sys.prefix) / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+os.environ["PATH"] = (
+    str(Path(sys.prefix) / "bin")
+    + os.pathsep
+    + str(_site / "nvidia" / "cuda_nvcc" / "bin")
+    + os.pathsep
+    + os.environ.get("PATH", "")
+)
 
 from vllm import LLM, SamplingParams
 
