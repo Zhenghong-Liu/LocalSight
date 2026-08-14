@@ -65,7 +65,7 @@ def main() -> None:
     model = LocalsightForCausalLM(model_cfg).to(f"cuda:{rank}")
     if args.start_checkpoint:
         model.load_state_dict(torch.load(Path(args.start_checkpoint) / "model.pt", map_location="cpu"))
-    model = DDP(model, device_ids=[rank])
+    model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=0.0)
 
     dataset = DPODataset(Path(args.data_dir))
