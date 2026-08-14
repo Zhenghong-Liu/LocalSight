@@ -24,8 +24,8 @@ class DPODataset(Dataset):
         manifest = json.loads((data_dir / "manifest.json").read_text(encoding="utf-8"))
         self.max_len = manifest["max_len"]
         self.prompt = np.memmap(data_dir / "prompt.bin", dtype=np.int32, mode="r")
-        self.chosen = np.memmap(data_dir / "chosen.bin", dtype=np.int32, mode="r")
-        self.rejected = np.memmap(data_dir / "rejected.bin", dtype=np.int32, mode="r")
+        self.chosen = np.memmap(data_dir / "chosen.bin", dtype=np.int32, mode="r").reshape(-1, self.max_len)
+        self.rejected = np.memmap(data_dir / "rejected.bin", dtype=np.int32, mode="r").reshape(-1, self.max_len)
         self.prompt_len = np.memmap(data_dir / "prompt_len.bin", dtype=np.int32, mode="r")
 
     def __len__(self) -> int:
