@@ -40,7 +40,6 @@ class DPODataset(Dataset):
         }
 
 
-@torch.no_grad()
 def response_logps(model, ids: torch.Tensor, prompt_lens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """返回 (响应 token 的 masked logp, 响应长度)，用于 SimPO 长度归一化。"""
     logits = model(ids)[0]
