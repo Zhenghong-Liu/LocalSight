@@ -66,6 +66,7 @@ def main() -> None:
     if args.start_checkpoint:
         model.load_state_dict(torch.load(Path(args.start_checkpoint) / "model.pt", map_location="cpu"))
     model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+    model._set_static_graph()  # 每步 chosen/rejected 两次前向共用同一计算图
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=0.0)
 
     dataset = DPODataset(Path(args.data_dir))
