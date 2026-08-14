@@ -15,7 +15,7 @@ def main() -> None:
     parser.add_argument("--questions", required=True, help="questions.jsonl")
     parser.add_argument("--judge-model", required=True)
     parser.add_argument("--out", required=True)
-    parser.add_argument("--batch", type=int, default=256)
+    parser.add_argument("--batch", type=int, default=16)
     args = parser.parse_args()
 
     questions = [json.loads(line) for line in Path(args.questions).read_text(encoding="utf-8").splitlines()]
