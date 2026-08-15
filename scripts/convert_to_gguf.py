@@ -91,7 +91,8 @@ def main() -> None:
     writer.add_tokenizer_model("gpt2")
     writer.add_token_list(tokens)
     with open(Path(args.tokenizer) / "tokenizer.json", encoding="utf-8") as f:
-        merges = list(json.load(f)["model"].get("merges", []))
+        raw_merges = json.load(f)["model"].get("merges", [])
+    merges = [pair if isinstance(pair, str) else " ".join(pair) for pair in raw_merges]
     if merges:
         writer.add_key_value(
             "tokenizer.ggml.merges", merges, GGUFValueType.ARRAY, GGUFValueType.STRING
