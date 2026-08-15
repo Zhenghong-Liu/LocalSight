@@ -92,7 +92,8 @@ def main() -> None:
     with open(Path(args.tokenizer) / "tokenizer.json", encoding="utf-8") as f:
         merges = list(json.load(f)["model"].get("merges", []))
     if merges:
-        writer.add_token_merges(merges)
+        writer.add_array("tokenizer.ggml.merges", merges)
+    writer.add_array("tokenizer.ggml.scores", [0.0] * len(tokens))
 
     # 非专家张量
     for our_name, (gguf_name, _) in mapping.items():
