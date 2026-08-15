@@ -71,7 +71,7 @@ def main() -> None:
     except ImportError:
         raise SystemExit("需要 pip install gguf")
 
-    writer = GGUFWriter(args.out, "qwen2moe")
+    writer = GGUFWriter(args.out, "qwen3moe")
     writer.add_name("LocalSight-198M-MoE")
     writer.add_context_length(config.max_position_embeddings)
     writer.add_embedding_length(config.hidden_size)
