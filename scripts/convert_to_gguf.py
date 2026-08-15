@@ -58,6 +58,8 @@ def main() -> None:
     parser.add_argument("--out", required=True)
     parser.add_argument("--quant", default="q8_0", choices=["f16", "q8_0", "q4_k_m"])
     parser.add_argument("--tokenizer", default="data/tokenizer")
+    parser.add_argument("--arch", default="qwen3moe", choices=["qwen3moe", "qwen2moe"])
+    parser.add_argument("--skip-qk-norm", action="store_true", help="Ollama qwen2moe 兼容")
     args = parser.parse_args()
 
     config = LocalsightConfig()
@@ -71,7 +73,7 @@ def main() -> None:
     except ImportError:
         raise SystemExit("需要 pip install gguf")
 
-    writer = GGUFWriter(args.out, "qwen3moe")
+    writer = GGUFWriter(args.out, args.arch)
     writer.add_name("LocalSight-198M-MoE")
     writer.add_context_length(config.max_position_embeddings)
     writer.add_embedding_length(config.hidden_size)
@@ -86,6 +88,9 @@ def main() -> None:
     writer.add_layer_norm_rms_eps(config.norm_eps)
     writer.add_rope_dimension_count(config.head_dim)
     writer.add_rope_freq_base(config.rope_theta)
+    writer.add_bos_token_id(0)
+    writer.add_eos_token_id(0)
+    writer.add_unk_token_id(0)
 
     # 词表：tokenizer 顺序 → 字符串；BPE merges 写出（llama.cpp 需要）
     vocab = tokenizer.tok.get_vocab()
@@ -109,6 +114,8 @@ def main() -> None:
     # 非专家张量
     for our_name, (gguf_name, _) in mapping.items():
         if "_exps" in gguf_name:
+            continue
+        if args.skip_qk_norm and ("attn_q_norm" in gguf_name or "attn_k_norm" in gguf_name):
             continue
         writer.add_tensor(gguf_name, state[our_name].float().numpy())
 
