@@ -101,7 +101,19 @@
   `localsight-198m`（用户态 Ollama 0.32.13，端口 11435，GPU 推理）已通过冒烟。
 - 兼容性记录：系统 Ollama 0.23.2 的 qwen2moe runner 与我们的 QK-Norm/无共享专家结构不兼容；
   最终采用 qwen3moe 架构 + 自有 0.32.13 二进制。
-- 待补：32k NIAH、IFEval、BFCL/工具 held-out 的正式评测与最终评测表。
+
+### 最终评测补充（2026-08-15）
+
+| 评测项 | 结果 | 说明 |
+| --- | --- | --- |
+| NIAH（Needle-in-a-Haystack） | 4k/8k/16k/**32k 全 5/5**（acc 1.0） | 每个长度 5 个 seed，`scripts/run_niah.py` |
+| IFEval（宽松规则版） | 100/100 | `scripts/run_ifeval.py` 仅检查开头/结尾/关键词/是-否等可规则化指令，**非严格 IFEval** |
+| Agent held-out（自建 400 条） | mean_reward=0.367、gt_hit=0.015 | 从 agent_prompts 划出的 held-out；采样样本基本未解出工具任务 |
+| MoE 负载健康 | step 999 负载 [0.269, 0.225, 0.240, 0.265] | 无路由坍塌，详见 pretrain.log |
+
+- 未跑项与替代：HumanEval / BFCL / CMMLU 未正式跑（下载或环境受限）；
+  BFCL 用自建 held-out 工具集 + gt 命中率替代，CMMLU 用 C-Eval 覆盖中文知识维度。
+- 完整评测表与发布信息见 [docs/08_final_metrics.md](08_final_metrics.md)。
 
 ## Run 记录
 

@@ -2,7 +2,9 @@
 
 从零训练一个**轻量、带思考能力的 MoE 语言模型**：`localsight-198m-moe`（总参数 198M，激活参数 64M），训练完成后转成 GGUF，通过 **Ollama** 本地运行。架构现在以文本为主，但按多模态预留扩展接口（词表已内置视觉/音频/TTS 特殊 token）。
 
-> 当前状态：**规划阶段**。模型与训练规则已在本仓库冻结成文档与参考配置，代码实现与训练尚未开始。
+> 当前状态：**五个训练阶段 + 评测 + GGUF/Ollama 发布均已完成**（2026-08-15）。
+> pretrain 因用户要求提前收尾（约 0.5 epoch），当前绝对分数偏低属预期；完整结果见
+> [docs/08_final_metrics.md](docs/08_final_metrics.md)。
 
 ## 一句话方案
 
@@ -20,7 +22,17 @@
 | agent_rl.jsonl | 79 MB | 39,988 | `{conversations, gt}`（末轮留空） | ~9M |
 
 - Tokenizer：6400 词表 ByteLevel BPE，内置 `<think>`、`<tool_call>`、vision/audio/TTS 特殊 token。
-- 预训练使用大语料（实测 2.13B tokens），按用户要求跑 **5 epochs**（约 10.7B tokens）；小语料只用于开发/冒烟与 LR 扫描。
+- 预训练使用大语料（实测 2.13B tokens），原计划 **5 epochs**（约 10.7B tokens），2026-08-14 用户决定提前至约 0.5 epoch 收尾；小语料只用于开发/冒烟与 LR 扫描。
+
+## 最终结果速览（2026-08-15）
+
+| 项 | 结果 |
+| --- | --- |
+| 训练 | pretrain(step-1000) → SFT 2ep → SimPO → RLAIF 2 轮 → Agent RL |
+| MMLU / C-Eval / GSM8K | 17% / 19% / 1%（100 样本；思考开关无差异） |
+| NIAH 32k | 5/5 |
+| Agent held-out | mean_reward 0.367、gt_hit 0.015（400 条） |
+| 发布 | GGUF f16/Q8_0/Q4_K_M + Ollama `localsight-198m`（端口 11435） |
 
 ## 文档导航
 
@@ -34,6 +46,7 @@
 | [docs/05_evaluation_and_release.md](docs/05_evaluation_and_release.md) | 评测体系与发布/Ollama 流程 |
 | [docs/06_infrastructure.md](docs/06_infrastructure.md) | 服务器、git 与本地↔服务器工作流 |
 | [docs/07_experiment_log.md](docs/07_experiment_log.md) | 实验记录模板 |
+| [docs/08_final_metrics.md](docs/08_final_metrics.md) | 最终评测表、发布产物与已知局限 |
 
 ## 目录结构（骨架）
 
