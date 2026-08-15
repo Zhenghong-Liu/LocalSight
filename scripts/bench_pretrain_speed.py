@@ -22,6 +22,7 @@ def run_variant(compile_on: bool) -> list[float]:
         "--max-steps", "20",
         "--eval-interval-sec", "0",
         "--no-milestone-bench",
+        "--artifacts-dir", "/tmp/pt_bench",
     ]
     if compile_on:
         cmd.append("--compile")

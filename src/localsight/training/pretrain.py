@@ -82,7 +82,8 @@ def save_checkpoint(
     if rank != 0:
         return
     path.mkdir(parents=True, exist_ok=True)
-    torch.save(model.module.state_dict(), path / "model.pt")
+    raw = getattr(model.module, "_orig_mod", model.module)  # compile 后剥掉 _orig_mod 前缀
+    torch.save(raw.state_dict(), path / "model.pt")
     torch.save(optimizer.state_dict(), path / "optimizer.pt")
     (path / "state.json").write_text(
         json.dumps({"step": step, "cfg": cfg, "finished": False}, ensure_ascii=False, indent=2)
@@ -121,6 +122,8 @@ def main() -> None:
     parser.add_argument("--grad-accum", type=int, default=None, help="覆盖梯度累积步数")
     parser.add_argument("--lr", type=float, default=None, help="覆盖学习率")
     parser.add_argument("--wd", type=float, default=None, help="覆盖权重衰减")
+    parser.add_argument("--save-interval", type=int, default=None, help="覆盖 checkpoint 保存间隔")
+    parser.add_argument("--artifacts-dir", type=Path, default=None, help="覆盖产物目录（冒烟用）")
     parser.add_argument("--val-sequences", type=int, default=200, help="数据集尾部用于验证")
     parser.add_argument("--compile", action="store_true", help="torch.compile 训练环（max-autotune）")
     parser.add_argument("--resume", type=Path, default=None, help="断点目录（含 model.pt/optimizer.pt/state.json）")
@@ -141,6 +144,10 @@ def main() -> None:
         cfg["lr"] = args.lr
     if args.wd is not None:
         cfg["wd"] = args.wd
+    if args.save_interval is not None:
+        cfg["save_interval"] = args.save_interval
+    if args.artifacts_dir is not None:
+        cfg["artifacts_dir"] = str(args.artifacts_dir)
     torch.manual_seed(cfg.get("seed", 42) + rank)
 
     model = LocalsightForCausalLM(model_cfg).to(f"cuda:{rank}")  # 主权重 fp32，计算走 bf16 autocast
