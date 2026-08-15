@@ -188,12 +188,8 @@ def main() -> None:
     if args.compile:
         # 与激活重计算共存时禁用 cudagraphs（否则梯度张量被后续运行覆盖）
         model = torch.compile(model, mode="max-autotune-no-cudagraphs")
-    model = DDP(
-        model,
-        device_ids=[rank],
-        find_unused_parameters=False,
-        static_graph=True,
-    )
+    # 与首轮稳定运行的 DDP 配置一致：static_graph 实测零提速且增加显存压力（22GB 边界）。
+    model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     dataset = PretrainDataset(Path(args.data_dir))
     if args.resume is not None:
