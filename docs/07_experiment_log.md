@@ -90,6 +90,19 @@
 - RLAIF 第一轮完成：8k prompts × K=2 采样 → transformers 7B judge 打分（vLLM 因 nvcc/JIT 兼容问题弃用）→ SimPO → artifacts/rlaif_round1/model.pt。
 - RLAIF 第二轮启动中（同样 8k × K=2），预计数小时。
 
+### 最终结果（2026-08-15）
+
+- 五阶段全部执行：pretrain（提前结束于 step-1060，用户决定）→ SFT 2 epochs → SimPO →
+  RLAIF 2 轮（8k prompts × K=2）→ Agent RL（4k prompts，含黄金 rollout）。
+- 评测（最终 agent_rl 权重，100 样本/项，思考开/关得分相同）：
+  MMLU 17%、C-Eval 19%、GSM8K 1%。（模型受 0.5-epoch 预训练限制，绝对分偏低；思考增益暂不显著。）
+- Agent RL 训练期：mean_reward 0.21→0.55（格式奖励改善）；gt_hit=0.167（1/6 组内为黄金样本，采样样本基本未解出）。
+- 发布：`artifacts/release/` 下 f16（qwen3moe）、Q8_0、Q4_K_M 三个 GGUF；Ollama 模型
+  `localsight-198m`（用户态 Ollama 0.32.13，端口 11435，GPU 推理）已通过冒烟。
+- 兼容性记录：系统 Ollama 0.23.2 的 qwen2moe runner 与我们的 QK-Norm/无共享专家结构不兼容；
+  最终采用 qwen3moe 架构 + 自有 0.32.13 二进制。
+- 待补：32k NIAH、IFEval、BFCL/工具 held-out 的正式评测与最终评测表。
+
 ## Run 记录
 
 - 阶段：
