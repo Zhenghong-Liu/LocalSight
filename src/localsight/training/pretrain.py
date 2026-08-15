@@ -367,7 +367,9 @@ def main() -> None:
         keep=cfg["soup_last_n"],
     )
     if rank == 0:
-        (Path(cfg["artifacts_dir"]) / "pretrain" / "DONE").write_text(
+        done_path = Path(cfg["artifacts_dir"]) / "pretrain" / "DONE"
+        done_path.parent.mkdir(parents=True, exist_ok=True)
+        done_path.write_text(
             json.dumps({"step": resume_step + step // cfg["grad_accum"], "finished": True}, indent=2)
         )
         print(f"pretrain 完成，总耗时 {(time.time() - start)/3600:.2f} h")
