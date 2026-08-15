@@ -76,6 +76,10 @@ def main() -> None:
             ) + "\n")
         if done:
             print(f"watchdog: PRETRAIN_DONE (resume={resume})", flush=True)
+            final_eval = Path("scripts/pretrain_final_eval.sh")
+            if final_eval.exists():
+                print("watchdog: 运行收尾评测（MMLU/C-Eval/GSM8K/NIAH/IFEval）", flush=True)
+                subprocess.run(["bash", str(final_eval)], env=env, check=False)
             return
         retries += 1
         if retries > args.max_retries:

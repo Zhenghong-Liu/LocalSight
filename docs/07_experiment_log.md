@@ -129,6 +129,16 @@
   `scripts/pretrain_watchdog.py`、`scripts/bench_pretrain_speed.py`、
   `scripts/pretrain_final_eval.sh`；thinking_prompts 扩到 50 条。
 
+### Pretrain 续训执行（2026-08-15 16:05 启动）
+
+- 提速基准：基线 96.2k tok/s vs compile 98.6k（1.03×）→ 按阈值回退，不启用 compile；
+  DDP static_graph 实测零收益且带来显存压力，回退首轮稳定配置。
+- 冒烟：mini 语料 10 步保存 → 编译版续训 10 步，checkpoint 键名干净、soup 正常、LR 连续。
+- 正式运行：看门狗从 `artifacts/pretrain/step-1000` 续训（`--max-total-tokens 5.5e9`），
+  LR 重锚 2.96e-3；首步抽查 ppl=5.45（与 val_loss 1.69 一致），loss 1.92→1.70 恢复下降；
+  日志 `artifacts/pretrain_resume.log`，抽查产物 `artifacts/eval_samples/`，
+  checkpoint 每 500 步（step-1500/2000/...），完成后看门狗自动跑收尾评测。
+
 ## Run 记录
 
 - 阶段：
