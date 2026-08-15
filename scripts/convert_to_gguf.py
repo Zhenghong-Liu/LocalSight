@@ -80,6 +80,10 @@ def main() -> None:
     writer.add_head_count_kv(config.num_key_value_heads)
     writer.add_expert_count(config.num_experts)
     writer.add_expert_used_count(config.num_experts_per_tok)
+    writer.add_expert_shared_count(0)
+    writer.add_expert_feed_forward_length(config.moe_intermediate_size)
+    writer.add_feed_forward_length(config.moe_intermediate_size)
+    writer.add_layer_norm_rms_eps(config.norm_eps)
     writer.add_rope_dimension_count(config.head_dim)
     writer.add_rope_freq_base(config.rope_theta)
 
