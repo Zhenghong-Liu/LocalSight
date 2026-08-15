@@ -101,6 +101,8 @@
   `localsight-198m`（用户态 Ollama 0.32.13，端口 11435，GPU 推理）已通过冒烟。
 - 兼容性记录：系统 Ollama 0.23.2 的 qwen2moe runner 与我们的 QK-Norm/无共享专家结构不兼容；
   最终采用 qwen3moe 架构 + 自有 0.32.13 二进制。
+- Ollama 思考开关：旧 Modelfile 模板不含思考块（API 报 does not support thinking）；
+  改用官方 `RENDERER qwen3.5` 后实测 `think:false` 直接出答案、`think:true` 返回 thinking 字段。
 
 ### 最终评测补充（2026-08-15）
 

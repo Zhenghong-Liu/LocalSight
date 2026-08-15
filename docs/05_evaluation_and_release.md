@@ -48,12 +48,18 @@ harness：`lighteval` 或 `opencompass` 跑标准基准；对话/思考/工具�
 
 ### 4.3 Ollama
 
-`deploy/ollama/Modelfile.template` 已提供：模板用 `<|im_start|>` 格式，assistant 侧带 `<think>` 块，参数含 `open_thinking` 语义（Ollama 的 template 不支持条件变量时，用 system 提示控制是否思考）。发布命令：
+`deploy/ollama/Modelfile.template` 已提供：使用官方 `RENDERER qwen3.5`（与 Qwen3 的
+`<|im_start|>` + `<think>` 格式一致），原生支持思考开关——API 传 `think: true/false`，
+CLI 用 `/think` 切换。发布命令：
 
 ```bash
-ollama create localsight-198m -f deploy/ollama/Modelfile
-ollama run localsight-198m
+OLLAMA_HOST=127.0.0.1:11435 ollama create localsight-198m -f deploy/ollama/Modelfile
+OLLAMA_HOST=127.0.0.1:11435 ollama run localsight-198m
 ```
+
+> 注意：服务器系统自带的 Ollama 0.23.2（默认端口 11434）的 qwen2moe runner 与
+> QK-Norm/无共享专家结构不兼容，必须使用 ≥0.32 的用户态二进制（`~/ollama/bin/ollama`）
+> 和 11435 端口；实测 `think:false` 直接输出答案、`think:true` 返回 thinking 字段。
 
 ### 4.4 Model Card
 

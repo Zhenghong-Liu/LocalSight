@@ -59,6 +59,11 @@ export OLLAMA_HOST=127.0.0.1:11435
 > 系统自带的 Ollama 0.23.2（默认端口 11434）的 qwen2moe runner 与 QK-Norm/无共享专家结构不兼容，
 > 必须使用上述用户态二进制与端口。
 
+思考开关（官方 qwen3.5 renderer，已实测生效）：
+
+- `think:false`：直接输出答案（无 thinking 字段）；
+- `think:true`：先输出思考链（API 回复带 `thinking` 字段，CLI 用 `/think` 切换）。
+
 ## 五、数据构成与许可
 
 - 语料：`/media/liuzh/data/DLData/LocalSight` 下的 pretrain/sft/dpo/rlaif/agent_rl 数据集（本仓库不含原始数据）。
