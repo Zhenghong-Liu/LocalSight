@@ -61,13 +61,24 @@
 | wd | 0.1（备选 0.05，一并扫） |
 | 调度 | warmup 2% 步数 → cosine 衰减到峰值的 10% |
 | 有效 batch | 1,048,576 tokens = 2 卡 × 32 seq × 4096 × 累积 4 |
-| epochs | **5（用户锁定）**；小语料只用于开发/冒烟与 LR 扫描 |
+| 预算 | **总 5.5B tokens（2026-08-15 用户决定：对齐 MiniMind 完整路线）**；小语料只用于开发/冒烟与 LR 扫描 |
 
 > 执行修正（2026-08-14 用户决定）：5 epochs 需约 31h，无法在 08:00 前完成。
 > 改为 **epoch 1 结束即提前收尾**（约 step 2032，04:00 自动停训）→ 对最后
 > checkpoint 做 model soup → 立即衔接 SFT 2 epochs → SimPO。全部由
 > `scripts/early_finish_pretrain.py` 看门狗在服务器上自动执行，预计 06:30 前完成。
 | seq len | 4096 |
+
+> 执行修正 2（2026-08-15 用户决定）：与 MiniMind 对照后发现效果差距主要来自
+> token 量（我们仅练 1.06B，MiniMind 完整路线约 5.5B）。改为从
+> `artifacts/pretrain/step-1000` **续训到总 5.5B tokens**（再练约 4.44B）：
+> - 轻量提速套餐（DataLoader 多进程、DDP static_graph、compile no-cudagraphs，
+>   硬上限 1.5h，收益 <1.2× 即回退）；
+> - 训练期定时抽查：每小时用 `data/eval/thinking_prompts.txt`（50 条）think 开/关
+>   批量生成 + 10 条 val 续写 + PPL，写 `artifacts/eval_samples/`；
+> - 每个 checkpoint（500 步）跑 MMLU/C-Eval 100 样本快评；
+> - `scripts/pretrain_watchdog.py` 自动续训（NCCL 崩溃等，最多 5 次）；
+> - 收尾仍为最后 3 个 checkpoint model soup + 完整评测，下游阶段暂不执行。
 
 **MoE 监控与干预**
 

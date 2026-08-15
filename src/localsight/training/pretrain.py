@@ -1,10 +1,18 @@
-"""Pretrain 主循环：DDP + Muon/AdamW + bf16 + MoE 偏置负载均衡 + model soup。"""
+"""Pretrain 主循环：DDP + Muon/AdamW + bf16 + MoE 偏置负载均衡 + model soup。
+
+支持：
+- 断点续训（--resume，恢复 model/optimizer/step，LR 重锚）；
+- token 预算（--max-total-tokens，优先于 epochs）；
+- 训练期定时抽查（--eval-interval-sec）与 checkpoint 时 MMLU/C-Eval 快评；
+- checkpoint 保留最近 N 个（keep_last_checkpoints）。
+"""
 from __future__ import annotations
 
 import argparse
 import json
 import math
 import os
+import shutil
 import time
 from pathlib import Path
 
@@ -14,7 +22,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 
 from localsight.data import PretrainDataset
+from localsight.eval.periodic import run_quick_bench, run_sample_eval
 from localsight.model import LocalsightForCausalLM
+from localsight.tokenizer import LocalSightTokenizer
 from localsight.training.muon import Muon
 from localsight.utils.config import resolve_stage_config
 
@@ -38,6 +48,29 @@ def cosine_schedule(step: int, warmup: int, total: int, lr: float, lr_min_ratio:
     return lr * (lr_min_ratio + 0.5 * (1 - lr_min_ratio) * (1 + math.cos(math.pi * progress)))
 
 
+def cosine_resume_schedule(
+    step: int,
+    resume_step: int,
+    total: int,
+    peak_lr: float,
+    lr_min_ratio: float,
+) -> float:
+    """续训调度：从 resume_step 的 peak_lr 出发，cosine 衰减到 total 的 lr*ratio。"""
+    if step >= total:
+        return peak_lr * lr_min_ratio
+    progress = (step - resume_step) / max(1, total - resume_step)
+    return peak_lr * (lr_min_ratio + 0.5 * (1 - lr_min_ratio) * (1 + math.cos(math.pi * progress)))
+
+
+def interrupted_lr(cfg: dict, dataset_len: int, val_sequences: int, step: int) -> float:
+    """用原配置反推中断点 LR（warmup+cosine 的逆算），作为续训锚点。"""
+    world = int(os.environ["WORLD_SIZE"])
+    loader_len = math.ceil((dataset_len - val_sequences) / (cfg["micro_batch_size"] * world))
+    total = loader_len * cfg["epochs"] // cfg["grad_accum"]
+    warmup = int(total * cfg["warmup_ratio"])
+    return cosine_schedule(step, warmup, total, cfg["lr"], cfg["lr_min_ratio"])
+
+
 def save_checkpoint(
     model: DDP,
     optimizer: Muon,
@@ -51,7 +84,18 @@ def save_checkpoint(
     path.mkdir(parents=True, exist_ok=True)
     torch.save(model.module.state_dict(), path / "model.pt")
     torch.save(optimizer.state_dict(), path / "optimizer.pt")
-    (path / "state.json").write_text(json.dumps({"step": step, "cfg": cfg}, ensure_ascii=False, indent=2))
+    (path / "state.json").write_text(
+        json.dumps({"step": step, "cfg": cfg, "finished": False}, ensure_ascii=False, indent=2)
+    )
+
+
+def prune_checkpoints(ckpt_dir: Path, keep: int, base: Path) -> None:
+    """只保留 base（续训起点）与最近 keep 个 step-*，其余删除。"""
+    steps = sorted(ckpt_dir.glob("step-*"), key=lambda p: int(p.name.split("-")[1]))
+    if base is not None:
+        steps = [p for p in steps if p.name != base.name]
+    for old in steps[:-keep] if keep > 0 else steps:
+        shutil.rmtree(old)
 
 
 def soup_checkpoints(ckpt_dir: Path, out: Path, keep: int = 3) -> None:
@@ -72,12 +116,19 @@ def main() -> None:
     parser.add_argument("--config", required=True)
     parser.add_argument("--data-dir", required=True, help="已构建的 processed/pretrain 目录")
     parser.add_argument("--max-steps", type=int, default=None, help="限制优化器步数（开发/冒烟用）")
+    parser.add_argument("--max-total-tokens", type=int, default=5_500_000_000)
     parser.add_argument("--micro-batch", type=int, default=None, help="覆盖每卡微批次")
     parser.add_argument("--grad-accum", type=int, default=None, help="覆盖梯度累积步数")
     parser.add_argument("--lr", type=float, default=None, help="覆盖学习率")
     parser.add_argument("--wd", type=float, default=None, help="覆盖权重衰减")
     parser.add_argument("--val-sequences", type=int, default=200, help="数据集尾部用于验证")
     parser.add_argument("--compile", action="store_true", help="torch.compile 训练环（max-autotune）")
+    parser.add_argument("--resume", type=Path, default=None, help="断点目录（含 model.pt/optimizer.pt/state.json）")
+    parser.add_argument("--eval-interval-sec", type=int, default=3600, help="定时抽查间隔，<=0 关闭")
+    parser.add_argument("--eval-prompts", type=Path, default=Path("data/eval/thinking_prompts.txt"))
+    parser.add_argument("--eval-out", type=Path, default=Path("artifacts/eval_samples"))
+    parser.add_argument("--eval-data-dir", type=str, default="data/eval")
+    parser.add_argument("--no-milestone-bench", action="store_true", help="checkpoint 时跳过 MMLU/C-Eval 快评")
     args = parser.parse_args()
 
     rank, world = setup_distributed()
@@ -115,12 +166,34 @@ def main() -> None:
         betas=tuple(cfg["optimizer"]["adam_betas"]),
     )
 
+    resume_step = 0
+    resume_base: Path | None = None
+    resume_peak_lr: float | None = None
+    saved_cfg: dict | None = None
+    if args.resume is not None:
+        resume_base = args.resume.resolve()
+        state = json.loads((resume_base / "state.json").read_text(encoding="utf-8"))
+        saved_cfg = state.get("cfg", {}) or None
+        model.load_state_dict(torch.load(resume_base / "model.pt", map_location=f"cuda:{rank}"))
+        optimizer.load_state_dict(torch.load(resume_base / "optimizer.pt", map_location=f"cuda:{rank}"))
+        resume_step = int(state["step"])
+
     if args.compile:
         # 与激活重计算共存时禁用 cudagraphs（否则梯度张量被后续运行覆盖）
         model = torch.compile(model, mode="max-autotune-no-cudagraphs")
-    model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+    model = DDP(
+        model,
+        device_ids=[rank],
+        find_unused_parameters=False,
+        static_graph=True,
+    )
 
     dataset = PretrainDataset(Path(args.data_dir))
+    if args.resume is not None:
+        resume_peak_lr = interrupted_lr(
+            saved_cfg or cfg, len(dataset), cfg.get("val_sequences", 200), resume_step
+        )
+    tokenizer = LocalSightTokenizer(cfg["tokenizer_dir"])
     val_indices = list(range(max(0, len(dataset) - args.val_sequences), len(dataset)))
     train_indices = list(range(max(0, len(dataset) - args.val_sequences)))
     train_subset = torch.utils.data.Subset(dataset, train_indices)
@@ -131,22 +204,42 @@ def main() -> None:
         shuffle=True,
         seed=cfg.get("seed", 42),
     )
-    loader = DataLoader(train_subset, batch_size=cfg["micro_batch_size"], sampler=sampler, pin_memory=True)
+    loader = DataLoader(
+        train_subset,
+        batch_size=cfg["micro_batch_size"],
+        sampler=sampler,
+        pin_memory=True,
+        num_workers=cfg.get("num_workers", 0),
+        persistent_workers=cfg.get("num_workers", 0) > 0,
+        prefetch_factor=cfg.get("prefetch_factor", 2) if cfg.get("num_workers", 0) > 0 else None,
+    )
 
-    total_steps = len(loader) * cfg["epochs"] // cfg["grad_accum"]
+    tokens_per_step = cfg["micro_batch_size"] * world * dataset.max_len * cfg["grad_accum"]
+    total_steps = args.max_total_tokens // tokens_per_step
+    if args.max_steps is not None:
+        total_steps = args.max_steps
     warmup = int(total_steps * cfg["warmup_ratio"])
     routing = cfg["routing"]
     step = 0
     start = time.time()
     window_tokens = 0
     window_start = start
+    last_sample_eval = 0.0
     acc_counts = torch.zeros(
         model_cfg.num_hidden_layers,
         model_cfg.num_experts,
         device=f"cuda:{rank}",
     )
 
-    for epoch in range(cfg["epochs"]):
+    prompts = None
+    if args.eval_interval_sec > 0:
+        prompts = [
+            line.strip() for line in args.eval_prompts.read_text(encoding="utf-8").splitlines() if line.strip()
+        ]
+
+    finished = False
+    epoch = 0
+    while not finished:
         sampler.set_epoch(epoch)
         for batch in loader:
             input_ids = batch["input_ids"].cuda(rank, non_blocking=True)
@@ -164,12 +257,18 @@ def main() -> None:
 
             if (step + 1) % cfg["grad_accum"] == 0:
                 grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), cfg["grad_clip"]).item()
-                lr = cosine_schedule(step // cfg["grad_accum"], warmup, total_steps, cfg["lr"], cfg["lr_min_ratio"])
+                optimizer_step = resume_step + step // cfg["grad_accum"]
+                if resume_peak_lr is not None:
+                    lr = cosine_resume_schedule(
+                        optimizer_step, resume_step, total_steps,
+                        resume_peak_lr, cfg["lr_min_ratio"],
+                    )
+                else:
+                    lr = cosine_schedule(optimizer_step, warmup, total_steps, cfg["lr"], cfg["lr_min_ratio"])
                 for group in optimizer.param_groups:
                     group["lr"] = lr
                 optimizer.step()
                 optimizer.zero_grad()
-                optimizer_step = step // cfg["grad_accum"]
 
                 counts = acc_counts.clone()
                 for i, layer in enumerate(model.module.model.layers):
@@ -184,41 +283,75 @@ def main() -> None:
                     print(
                         f"step={optimizer_step} loss={loss.item():.4f} z={aux['z_loss'].item():.4f} "
                         f"grad={grad_norm:.2f} lr={lr:.2e} tok/s={tokens_per_sec:.0f} "
-                        f"mfu={mfu*100:.1f}% load={[round(f, 3) for f in frac]}"
+                        f"mfu={mfu*100:.1f}% load={[round(f, 3) for f in frac]}",
+                        flush=True,
                     )
                     window_tokens = 0
                     window_start = time.time()
 
-                if (optimizer_step + 1) % cfg["save_interval"] == 0 and args.val_sequences > 0:
+                # 定时抽查（每小时）+ checkpoint 快评
+                is_checkpoint = (optimizer_step + 1) % cfg["save_interval"] == 0
+                do_sample = bool(prompts) and optimizer_step > resume_step and (
+                    time.time() - last_sample_eval >= args.eval_interval_sec
+                )
+                if do_sample:
+                    dist.barrier()
                     if rank == 0:
-                        val_loader = DataLoader(
-                            torch.utils.data.Subset(dataset, val_indices),
-                            batch_size=4,
-                        )
-                        model.eval()
-                        total, n = 0.0, 0
-                        with torch.no_grad():
-                            for vb in val_loader:
-                                with torch.autocast("cuda", dtype=torch.bfloat16):
-                                    _, vloss, _ = model(
-                                        vb["input_ids"].cuda(rank),
-                                        labels=vb["labels"].cuda(rank),
-                                        document_ids=vb["document_ids"].cuda(rank),
-                                    )
-                                total += vloss.item() * vb["input_ids"].size(0)
-                                n += vb["input_ids"].size(0)
-                        model.train()
-                        print(f"[val] step={optimizer_step + 1} val_loss={total / max(n, 1):.4f}")
+                        raw = model.module
+                        raw.eval()
+                        try:
+                            val_loader = DataLoader(
+                                torch.utils.data.Subset(dataset, val_indices),
+                                batch_size=4,
+                            )
+                            metrics = run_sample_eval(
+                                raw, tokenizer, prompts or [], val_loader, args.eval_out, optimizer_step,
+                                model_cfg=model_cfg, device=torch.device(f"cuda:{rank}"),
+                            )
+                            print(
+                                f"[sample] step={optimizer_step} think_trigger={metrics['think_trigger_rate']} "
+                                f"len_ratio={metrics['mean_length_ratio']} rep4={metrics['rep4_mean']} "
+                                f"ppl={metrics['ppl']}",
+                                flush=True,
+                            )
+                        finally:
+                            raw.train()
+                    dist.barrier()
+                    last_sample_eval = time.time()
 
-                if (optimizer_step + 1) % cfg["save_interval"] == 0:
+                if is_checkpoint:
                     ckpt = Path(cfg["artifacts_dir"]) / "pretrain" / f"step-{optimizer_step + 1}"
                     save_checkpoint(model, optimizer, ckpt, optimizer_step + 1, cfg, rank)
                     dist.barrier()
-                if args.max_steps is not None and optimizer_step + 1 >= args.max_steps:
+                    if rank == 0:
+                        prune_checkpoints(
+                            Path(cfg["artifacts_dir"]) / "pretrain",
+                            cfg.get("keep_last_checkpoints", 3),
+                            resume_base,
+                        )
+                        if not args.no_milestone_bench:
+                            raw = model.module
+                            raw.eval()
+                            try:
+                                bench = run_quick_bench(
+                                    raw, tokenizer,
+                                    args.eval_data_dir, model_cfg=model_cfg,
+                                    device=torch.device(f"cuda:{rank}"),
+                                )
+                                print(
+                                    f"[bench] step={optimizer_step + 1} "
+                                    + " ".join(f"{k}={v['acc']:.3f}" for k, v in bench.items()),
+                                    flush=True,
+                                )
+                            finally:
+                                raw.train()
+                    dist.barrier()
+
+                if optimizer_step + 1 >= total_steps:
+                    finished = True
                     break
             step += 1
-        if args.max_steps is not None and step // cfg["grad_accum"] >= args.max_steps:
-            break
+        epoch += 1
 
     dist.barrier()
     soup_checkpoints(
@@ -227,7 +360,11 @@ def main() -> None:
         keep=cfg["soup_last_n"],
     )
     if rank == 0:
+        (Path(cfg["artifacts_dir"]) / "pretrain" / "DONE").write_text(
+            json.dumps({"step": resume_step + step // cfg["grad_accum"], "finished": True}, indent=2)
+        )
         print(f"pretrain 完成，总耗时 {(time.time() - start)/3600:.2f} h")
+        print("PRETRAIN_DONE", flush=True)
     dist.destroy_process_group()
 
 

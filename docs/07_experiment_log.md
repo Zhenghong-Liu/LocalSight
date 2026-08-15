@@ -117,6 +117,18 @@
   BFCL 用自建 held-out 工具集 + gt 命中率替代，CMMLU 用 C-Eval 覆盖中文知识维度。
 - 完整评测表与发布信息见 [docs/08_final_metrics.md](08_final_metrics.md)。
 
+### Pretrain 续训计划（2026-08-15 用户决定）
+
+- 与 MiniMind 对照：官方 198M-MoE 评测 C-Eval 25.5 / CMMLU 24.3（≈随机），我们 19%
+  的差距主要来自只练了 0.5 epoch（1.06B tokens）而非预处理问题（我们的去重+packing
+  是 MiniMind 截断+padding 的超集）。
+- 决策：从 `artifacts/pretrain/step-1000` 续训至总 **5.5B tokens**（对齐 MiniMind），
+  约再练 4.44B；轻量提速套餐（≤1.5h，<1.2× 即回退）；每小时定时抽查 + checkpoint
+  快评；看门狗自动续训；下游阶段与 v0.2.0 暂缓。
+- 实现：`train_pretrain.py` 支持 `--resume` / `--max-total-tokens` / 定时抽查，
+  `scripts/pretrain_watchdog.py`、`scripts/bench_pretrain_speed.py`、
+  `scripts/pretrain_final_eval.sh`；thinking_prompts 扩到 50 条。
+
 ## Run 记录
 
 - 阶段：

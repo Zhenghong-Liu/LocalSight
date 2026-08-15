@@ -29,7 +29,7 @@
 - **架构**：MiniMind-3-MoE 骨架，768 维 / 8 层 / 8 Q 头 / 4 KV 头（GQA），4 专家 top-1、无共享专家；`moe_intermediate_size=2432`（不是 2048，参数账决定）；词表 6400（数据集自带 BPE，含 think/tool/vision/audio/TTS 特殊 token）；tied embedding、无 bias、RMSNorm、QK-Norm、SwiGLU、RoPE theta=1e6、max_pos=32768。
 - **多模态**：当前只做文本；代码预留 `ModalityEncoder` / `Projector` 接口与数据字段，不提前实现视觉塔。
 - **训练顺序**：pretrain → sft → dpo → rlaif → agent_rl，不可调换。
-- **pretrain**：主语料只用大文件 `pretrain_t2t.jsonl`（7.8GB，实测 2.13B tokens）。原计划 5 epochs（约 10.7B tokens），**2026-08-14 用户要求提前结束**：epoch 1（约 2.13B tokens）后即停训，model soup 保存，随后自动衔接 SFT→SimPO（`scripts/early_finish_pretrain.py` 看门狗）。`pretrain_t2t_mini.jsonl`（实测 0.33B）仅用于开发、冒烟与 LR 扫描。优化器 Muon（Moonlight 公式，NS=5、momentum=0.95）管理矩阵参数，AdamW 管 embedding/norm/router；lr=3e-3、wd=0.1（mini 扫描最优）。
+- **pretrain**：主语料只用大文件 `pretrain_t2t.jsonl`（7.8GB，实测 2.13B tokens，即 MiniMind 官方语料，词表一致）。**2026-08-15 用户决定**：与 MiniMind 完整路线对齐，从 `artifacts/pretrain/step-1000` 续训至总 **5.5B tokens**（`--max-total-tokens`），期间每小时用 50 条 thinking prompts 抽查输出、每个 checkpoint 跑 MMLU/C-Eval 快评，`scripts/pretrain_watchdog.py` 自动续训；轻量提速套餐（DataLoader 多进程/DDP static_graph/compile，收益 <1.2× 即回退）；下游阶段暂不执行。优化器 Muon（Moonlight 公式，NS=5、momentum=0.95）管理矩阵参数，AdamW 管 embedding/norm/router；lr=3e-3、wd=0.1（mini 扫描最优）。
 - **MoE 路由**：DeepSeek-V3 偏置式负载均衡（偏置不参与梯度，步长 ±1e-2）+ router z-loss（α=1e-3）+ 常开轻量 balance aux loss（α=1e-2）。注：top-1 小模型实测会坍缩，因此从 aux-loss-free 调整为常开轻量 aux，与 MiniMind 原版策略一致。
 - **SFT**：905,718 条，约 34% 带 reasoning_content、约 9.4% 带工具；统一用数据自带的 chat_template（assistant 永远包 `<think>...</think>`）；AdamW lr=1.5e-4，2 epochs，seq 8192，packing + document-aware mask，NEFTune α=5。
 - **dpo**：17,166 对无思考格式 → SimPO 做通用质量偏好（β=2.0、γ=1.2 起步），lr=5e-6。
