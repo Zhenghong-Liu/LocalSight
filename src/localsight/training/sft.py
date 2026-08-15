@@ -86,6 +86,7 @@ def main() -> None:
     parser.add_argument("--grad-accum", type=int, default=None)
     parser.add_argument("--epochs", type=float, default=None, help="覆盖训练轮数")
     parser.add_argument("--no-bf16", action="store_true", help="CPU 冒烟时关闭 bf16")
+    parser.add_argument("--no-cuda", action="store_true", help="CPU 冒烟时强制不用 GPU")
     parser.add_argument("--sample-interval", type=int, default=100, help="抽样步数间隔，<=0 关闭")
     parser.add_argument("--sample-prompts", type=Path, default=Path("data/eval/thinking_prompts.txt"))
     parser.add_argument("--sample-out", type=Path, default=Path("artifacts/sft_samples"))
@@ -120,6 +121,7 @@ def main() -> None:
         weight_decay=cfg["wd"],
         warmup_steps=warmup_steps,
         bf16=not args.no_bf16,
+        no_cuda=args.no_cuda,
         logging_steps=cfg.get("log_interval", 10),
         save_steps=cfg.get("save_interval", 1000),
         save_total_limit=3,
