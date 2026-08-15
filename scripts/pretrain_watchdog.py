@@ -62,7 +62,6 @@ def main() -> None:
             "--data-dir", args.data_dir,
             "--resume", resume,
             "--max-total-tokens", str(args.max_total_tokens),
-            "--compile",
         ]
         with open(args.log, "a", encoding="utf-8") as log_file:
             log_file.write(f"\n===== watchdog launch {time.strftime('%F %T')} resume={resume} =====\n")
