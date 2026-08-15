@@ -110,6 +110,12 @@
 
 **闸门**：开启思考 vs 关闭思考在数学/推理 eval 上有正增益；「你好」类问题不输出长篇思考。
 
+> 执行修正（2026-08-15 用户决定）：pretrain 收尾评测完成后由 `scripts/sft_chain.py` 自动接 SFT：
+> round1 用 sft_t2t_mini（2 epochs，起点新 pretrain/soup），训练期每 100 步用 25 条 thinking
+> prompts 抽样存档；完成后由 7B judge 均分（≥4.0/10）+ 思考触发率（≥0.3）+ rep-4（≤0.55）
+> + MMLU/C-Eval 快评共同裁决；未达标则用 `/media/liuzh/data/DLData/minimind/sft_512.jsonl`
+> （680 万条，7.1GB）再训 1 epoch；达标则停止等待用户指令，不自动接 SimPO/RL。
+
 ## 6. Stage 3 · 偏好对齐（SimPO）
 
 **数据**：`dpo.jsonl`（17,166 对，无思考格式 → 通用质量偏好）。模板化后 chosen/rejected 都带空 think 块。

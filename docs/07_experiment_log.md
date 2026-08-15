@@ -138,6 +138,9 @@
   LR 重锚 2.96e-3；首步抽查 ppl=5.45（与 val_loss 1.69 一致），loss 1.92→1.70 恢复下降；
   日志 `artifacts/pretrain_resume.log`，抽查产物 `artifacts/eval_samples/`，
   checkpoint 每 500 步（step-1500/2000/...），完成后看门狗自动跑收尾评测。
+- 用户后续指令（2026-08-15）：pretrain 预计 08-16 05:15 完成，收尾评测后由
+  `scripts/sft_chain.py` 自动接 SFT；质量由 7B judge + 指标 + 快评裁决，未达标则用
+  `sft_512.jsonl` 加训一轮；SFT 完成后停止等用户指令（不自动接 SimPO/RL）。
 
 ## Run 记录
 

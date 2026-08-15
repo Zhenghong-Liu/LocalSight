@@ -169,6 +169,7 @@ def run_sample_eval(
     step: int,
     *,
     model_cfg,
+    tag: str = "pretrain",
     max_new: int = 256,
     temperature: float = 0.7,
     top_p: float = 0.9,
@@ -201,10 +202,10 @@ def run_sample_eval(
     gen("thinking_on", on_ids, prompts)
     gen("thinking_off", off_ids, prompts)
 
-    cont_prompts = continuation_prompts(val_loader, count=10)
+    cont_prompts = continuation_prompts(val_loader, count=10) if val_loader is not None else []
     gen("continuation", cont_prompts, [tokenizer.decode(p) for p in cont_prompts])
 
-    ppl, n_val = quick_ppl(model, val_loader, device)
+    ppl, n_val = quick_ppl(model, val_loader, device) if val_loader is not None else (float("nan"), 0)
 
     on_recs = [r for r in records if r["kind"] == "thinking_on"]
     off_recs = [r for r in records if r["kind"] == "thinking_off"]
@@ -218,16 +219,16 @@ def run_sample_eval(
             sum(o / max(f, 1) for o, f in zip(on_len, off_len)) / max(len(on_recs), 1), 4
         ),
         "rep4_mean": round(sum(r["rep4"] for r in records) / max(len(records), 1), 4),
-        "ppl": round(ppl, 4),
+        "ppl": None if math.isnan(ppl) else round(ppl, 4),
         "n_val_tokens": n_val,
     }
 
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = f"step-{step:04d}"
-    with open(out_dir / f"pretrain-{stamp}.jsonl", "w", encoding="utf-8") as f:
+    with open(out_dir / f"{tag}-{stamp}.jsonl", "w", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps({**{"step": step}, **r}, ensure_ascii=False) + "\n")
-    with open(out_dir / f"pretrain-{stamp}.txt", "w", encoding="utf-8") as f:
+    with open(out_dir / f"{tag}-{stamp}.txt", "w", encoding="utf-8") as f:
         f.write(f"# 定时抽查 step={step}  {metrics['ts']}\n")
         f.write(f"# think_trigger_rate={metrics['think_trigger_rate']} "
                 f"length_ratio={metrics['mean_length_ratio']} "

@@ -27,6 +27,7 @@ def main() -> None:
     parser.add_argument("--tokenizer", default="data/tokenizer")
     parser.add_argument("--max-len", type=int, default=8192)
     parser.add_argument("--chunk", type=int, default=50_000)
+    parser.add_argument("--max-rows", type=int, default=None, help="只处理前 N 行（冒烟用）")
     args = parser.parse_args()
 
     out_dir = Path(args.out)
@@ -42,6 +43,8 @@ def main() -> None:
             open(out_dir / "labels.bin", "wb") as lf, \
             open(out_dir / "doc_ids.bin", "wb") as df:
         for row in ds:
+            if args.max_rows is not None and stats["rows"] >= args.max_rows:
+                break
             stats["rows"] += 1
             conversations = row.get("conversations")
             if not isinstance(conversations, list) or not conversations:
