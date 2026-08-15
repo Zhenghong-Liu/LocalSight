@@ -55,11 +55,14 @@ def generate_padded_batch(
     *,
     model_cfg,
     device: Optional[torch.device] = None,
-    dtype: torch.dtype = torch.bfloat16,
+    dtype: Optional[torch.dtype] = None,
 ) -> list[str]:
     """不等长 prompt 的批量解码：pad 后带掩码预填 + 逐步生成。返回每个样本的解码文本。"""
     b = len(prompts)
     device = device or next(model.parameters()).device
+    if dtype is None:
+        # GPU 上前向走 bf16 autocast；CPU 上与模型参数 dtype 一致（避免 SDPA dtype 不匹配）
+        dtype = torch.bfloat16 if device.type == "cuda" else next(model.parameters()).dtype
     max_len = max(len(p) for p in prompts)
     ids = torch.zeros((b, max_len), dtype=torch.long, device=device)
     valid = torch.zeros((b, max_len), dtype=torch.bool, device=device)

@@ -25,7 +25,7 @@ def test_generate_padded_batch_shapes_and_decoding():
     prompts = [[5, 6, 7], [11, 12, 13, 14, 15]]
     texts = generate_padded_batch(
         model, tok, prompts, max_new=8, temperature=1.0, top_p=0.9, stop_id=0,
-        model_cfg=cfg, device=torch.device("cpu"), dtype=torch.float32,
+        model_cfg=cfg, device=torch.device("cpu"),
     )
     assert len(texts) == 2
     for text in texts:
