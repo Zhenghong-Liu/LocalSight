@@ -67,6 +67,7 @@ def main() -> None:
 
     try:
         from gguf import GGUFWriter
+        from gguf.constants import GGUFValueType
     except ImportError:
         raise SystemExit("需要 pip install gguf")
 
@@ -92,8 +93,13 @@ def main() -> None:
     with open(Path(args.tokenizer) / "tokenizer.json", encoding="utf-8") as f:
         merges = list(json.load(f)["model"].get("merges", []))
     if merges:
-        writer.add_array("tokenizer.ggml.merges", merges)
-    writer.add_array("tokenizer.ggml.scores", [0.0] * len(tokens))
+        writer.add_key_value(
+            "tokenizer.ggml.merges", merges, GGUFValueType.ARRAY, GGUFValueType.STRING
+        )
+    writer.add_key_value(
+        "tokenizer.ggml.scores", [0.0] * len(tokens),
+        GGUFValueType.ARRAY, GGUFValueType.FLOAT32,
+    )
 
     # 非专家张量
     for our_name, (gguf_name, _) in mapping.items():
