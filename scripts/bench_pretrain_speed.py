@@ -28,6 +28,7 @@ def run_variant(compile_on: bool) -> list[float]:
         cmd.append("--compile")
     env = os.environ.copy()
     env["NCCL_P2P_DISABLE"] = "1"
+    env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     env["PYTHONPATH"] = "src"
     out = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=1800)
     rates = [float(m) for m in re.findall(r"tok/s=([0-9.]+)", out.stdout)]
