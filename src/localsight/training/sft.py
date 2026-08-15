@@ -121,7 +121,7 @@ def main() -> None:
         weight_decay=cfg["wd"],
         warmup_steps=warmup_steps,
         bf16=not args.no_bf16,
-        no_cuda=args.no_cuda,
+        use_cpu=args.no_cuda,
         logging_steps=cfg.get("log_interval", 10),
         save_steps=cfg.get("save_interval", 1000),
         save_total_limit=3,
