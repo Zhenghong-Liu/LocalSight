@@ -34,6 +34,29 @@
 | Agent held-out | mean_reward 0.367、gt_hit 0.015（400 条） |
 | 发布 | GGUF f16/Q8_0/Q4_K_M + Ollama `localsight-198m`（端口 11435） |
 
+## 获取模型
+
+训练好的权重以 GGUF 形式发布在 [GitHub Releases](https://github.com/Zhenghong-Liu/LocalSight/releases)：
+
+- `localsight.Q8_0.gguf`（约 216 MB，推荐）
+- `localsight.Q4_K_M.gguf`（约 135 MB，更省内存）
+- `localsight.f16.gguf`（约 814 MB，研究用）
+
+模型卡见 [deploy/MODEL_CARD.md](deploy/MODEL_CARD.md)，完整评测与已知局限见
+[docs/08_final_metrics.md](docs/08_final_metrics.md)。
+
+## 快速开始（Ollama）
+
+需要 Ollama ≥ 0.32（系统自带的旧版 qwen2moe runner 与 QK-Norm/无共享专家结构不兼容）。
+
+```bash
+export OLLAMA_HOST=127.0.0.1:11435   # 若使用自定义端口；默认 11434 也可
+ollama create localsight-198m -f deploy/ollama/Modelfile.template
+ollama run localsight-198m
+```
+
+思考开关：API 请求体传 `"think": true/false`；CLI 中用 `/think` 切换。
+
 ## 文档导航
 
 | 文档 | 内容 |
@@ -54,11 +77,11 @@
 LocalSight/
 ├── docs/            # 全部规划文档
 ├── configs/         # 模型与各阶段参考配置（YAML）
-├── src/localsight/  # 模型、数据、训练、RL、评测代码（待实现）
+├── src/localsight/  # 模型、数据、训练、RL、评测、工具执行器
 ├── scripts/         # 数据探查、同步、训练启动脚本
-├── tests/           # 单元测试（待实现）
+├── tests/           # 单元测试（数值对齐、参数账、RL 奖励等）
 ├── deploy/ollama/   # Ollama Modelfile 模板
-└── artifacts/       # 训练产物（本地，gitignore）
+└── artifacts/       # 训练产物与 GGUF（不入 git）
 ```
 
 ## 环境
@@ -69,6 +92,8 @@ LocalSight/
 
 ## 开始
 
-详见 [docs/06_infrastructure.md](docs/06_infrastructure.md)。规划阶段的下一步是：冻结规则 → 搭服务器 conda 环境 → 写模型核心代码与冒烟测试（Stage 0）。
+复现训练：从 [docs/06_infrastructure.md](docs/06_infrastructure.md) 的服务器搭建开始，按
+[docs/03_training_plan.md](docs/03_training_plan.md) 的五个阶段执行，每个阶段的闸门评测与
+完成标准见 [docs/05_evaluation_and_release.md](docs/05_evaluation_and_release.md)。
 
 如需把整个项目交给「目标模式」持续执行，使用 [GOAL_PROMPT.md](GOAL_PROMPT.md) 作为初始 prompt。
