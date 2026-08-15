@@ -206,7 +206,8 @@ def run_sample_eval(
     gen("thinking_off", off_ids, prompts)
 
     cont_prompts = continuation_prompts(val_loader, count=10) if val_loader is not None else []
-    gen("continuation", cont_prompts, [tokenizer.decode(p) for p in cont_prompts])
+    if cont_prompts:
+        gen("continuation", cont_prompts, [tokenizer.decode(p) for p in cont_prompts])
 
     ppl, n_val = quick_ppl(model, val_loader, device) if val_loader is not None else (float("nan"), 0)
 
