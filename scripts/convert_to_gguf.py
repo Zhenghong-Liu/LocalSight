@@ -80,7 +80,7 @@ def main() -> None:
     writer.add_head_count_kv(config.num_key_value_heads)
     writer.add_expert_count(config.num_experts)
     writer.add_expert_used_count(config.num_experts_per_tok)
-    writer.add_expert_shared_count(1)
+    writer.add_expert_shared_count(0)
     writer.add_expert_feed_forward_length(config.moe_intermediate_size)
     writer.add_feed_forward_length(config.moe_intermediate_size)
     writer.add_layer_norm_rms_eps(config.norm_eps)
@@ -116,14 +116,6 @@ def main() -> None:
     e, d, f = config.num_experts, config.hidden_size, config.moe_intermediate_size
     for i in range(config.num_hidden_layers):
         prefix = f"model.layers.{i}.mlp.experts."
-        writer.add_tensor(f"blk.{i}.ffn_gate_inp_shexp.weight",
-                          np.zeros((1, config.hidden_size), dtype=np.float32))
-        writer.add_tensor(f"blk.{i}.ffn_gate_shexp.weight",
-                          np.zeros((config.moe_intermediate_size, config.hidden_size), dtype=np.float32))
-        writer.add_tensor(f"blk.{i}.ffn_up_shexp.weight",
-                          np.zeros((config.moe_intermediate_size, config.hidden_size), dtype=np.float32))
-        writer.add_tensor(f"blk.{i}.ffn_down_shexp.weight",
-                          np.zeros((config.hidden_size, config.moe_intermediate_size), dtype=np.float32))
         for kind, gguf_name in (("gate_proj", f"blk.{i}.ffn_gate_exps.weight"),
                                 ("up_proj", f"blk.{i}.ffn_up_exps.weight"),
                                 ("down_proj", f"blk.{i}.ffn_down_exps.weight")):
