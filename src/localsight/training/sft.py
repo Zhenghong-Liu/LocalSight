@@ -91,6 +91,7 @@ def main() -> None:
     parser.add_argument("--sample-prompts", type=Path, default=Path("data/eval/thinking_prompts.txt"))
     parser.add_argument("--sample-out", type=Path, default=Path("artifacts/sft_samples"))
     parser.add_argument("--sample-limit", type=int, default=25, help="每次抽样用前 N 条提示词")
+    parser.add_argument("--resume", action="store_true", help="从 output-dir 里最新 checkpoint 续训（HF Trainer）")
     args = parser.parse_args()
 
     cfg, model_cfg = resolve_stage_config(Path(args.config))
@@ -158,7 +159,7 @@ def main() -> None:
             )
         ],
     )
-    trainer.train()
+    trainer.train(resume_from_checkpoint=args.resume)
     model.save_pretrained(Path(args.output_dir) / "final")
     (Path(args.output_dir) / "final" / "manifest.json").write_text(
         json.dumps(dataset.manifest, ensure_ascii=False, indent=2), encoding="utf-8"

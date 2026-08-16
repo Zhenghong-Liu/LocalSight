@@ -141,6 +141,9 @@
 - 用户后续指令（2026-08-15）：pretrain 预计 08-16 05:15 完成，收尾评测后由
   `scripts/sft_chain.py` 自动接 SFT；质量由 7B judge + 指标 + 快评裁决，未达标则用
   `sft_512.jsonl` 加训一轮；SFT 完成后停止等用户指令（不自动接 SimPO/RL）。
+- 用户指令修正（2026-08-16）：SFT round1（sft_t2t_mini，2 epochs）完成后**无条件**
+  接 sft_512 训练 1 epoch，由 `scripts/sft512_chain.py` 后台接力（setsid，断网不影响），
+  完成后跑质量报告并停止等指令。
 
 ## Run 记录
 
