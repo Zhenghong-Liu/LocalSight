@@ -95,23 +95,23 @@ def run_round2() -> bool:
 
     for attempt in range(3):
         log(f"启动 round2（sft512，1 epoch，第 {attempt + 1}/3 次）")
-        run(
-            [
-                str(B / ".venv/bin/torchrun"), "--nproc_per_node=2",
-                str(B / "src/localsight/training/sft.py"),
-                "--config", str(B / "configs/sft.yaml"),
-                "--data-dir", str(SFT512_DATA),
-                "--output-dir", str(ROUND2_DIR),
-                "--start-checkpoint", str(B / "artifacts/sft_v2/final"),
-                "--epochs", "1",
-                "--sample-interval", "100",
-                "--sample-prompts", str(B / "data/eval/thinking_prompts.txt"),
-                "--sample-out", str(B / "artifacts/sft_samples_round2"),
-                "--sample-limit", "25",
-                "--resume",
-            ],
-            B / "artifacts" / "sft512.log",
-        )
+        cmd = [
+            str(B / ".venv/bin/torchrun"), "--nproc_per_node=2",
+            str(B / "src/localsight/training/sft.py"),
+            "--config", str(B / "configs/sft.yaml"),
+            "--data-dir", str(SFT512_DATA),
+            "--output-dir", str(ROUND2_DIR),
+            "--start-checkpoint", str(B / "artifacts/sft_v2/final"),
+            "--epochs", "1",
+            "--sample-interval", "100",
+            "--sample-prompts", str(B / "data/eval/thinking_prompts.txt"),
+            "--sample-out", str(B / "artifacts/sft_samples_round2"),
+            "--sample-limit", "25",
+        ]
+        if attempt > 0:
+            # 首次启动不能带 --resume（output-dir 尚无 checkpoint，HF Trainer 会直接报错）
+            cmd.append("--resume")
+        run(cmd, B / "artifacts" / "sft512.log")
         if ROUND2_FINAL.exists():
             log("round2 完成")
             return True
